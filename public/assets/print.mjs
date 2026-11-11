@@ -1,5 +1,5 @@
-import {cardSvg,compactLayout,LAYOUT} from './layout.mjs?v=compact5';
-import {cardPng} from './png-export.mjs?v=compact5';
+import {cardSvg,compactLayout,LAYOUT} from './layout.mjs?v=clean6';
+import {cardPng} from './png-export.mjs?v=clean6';
 const $=selector=>document.querySelector(selector);
 $('#print').onclick=()=>window.print();
 const params=new URLSearchParams(location.search);

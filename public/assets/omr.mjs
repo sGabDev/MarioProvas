@@ -1,5 +1,5 @@
-import {findFiducials} from './fiducials.mjs?v=compact5';
-import { LAYOUT, QR_LAYOUTS, compactLayout, bubblePosition } from './layout.mjs?v=compact5';
+import {findFiducials} from './fiducials.mjs?v=clean6';
+import { LAYOUT, QR_LAYOUTS, compactLayout, bubblePosition } from './layout.mjs?v=clean6';
 export class ReadError extends Error {
     constructor(code, message, details = {}) {
         super(message);

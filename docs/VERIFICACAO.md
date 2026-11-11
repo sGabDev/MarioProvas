@@ -1,5 +1,11 @@
 # Registro de verificação — 10/11/2026
 
+## Cartão sem cabeçalho em 11/11/2026 — versão clean6
+
+- Removidos do SVG/PNG e da impressão, tanto no compacto quanto no A4: nome do site, nome do simulado, turma/data, resumo de quantidade, identificação de bloco/conjunto, campo de estudante e instruções/rodapé. Permanecem somente números das questões, letras e bolhas das alternativas, QR e quatro referências de alinhamento.
+- Posições, dimensões, tamanho físico, QR e identificadores preservados. Dados de organização continuam na tela administrativa de download, fora da imagem e da impressão. Recursos usam `clean6` e cache PWA v6 para carregar a nova apresentação após recarregar a página.
+- **47 testes ópticos/do motor e 35 verificações da API aprovados**, além do fluxo DOM e da exportação no Chrome real. Conferido o PNG exportado visualmente e verificado que os únicos textos visíveis nos três formatos são os números das questões e as letras A–E. Esta alteração não acrescenta validação física de impressão/câmera.
+
 ## Cartão compacto em 11/11/2026 — versão compact5
 
 - Implementada grade dinâmica com até quatro colunas e 15 linhas, 2–5 alternativas e até 60 questões por bloco. Bolhas de 4 mm no tamanho recomendado; QR de 20,8 mm com margem de quatro módulos. Para cinco alternativas: 10 questões em 8,64 × 6,2 cm; 30 em 8,64 × 11,8 cm; 60 em 16 × 11,8 cm. Blocos adicionais continuam no mesmo modelo reutilizável e conservam os identificadores.
