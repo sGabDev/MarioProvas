@@ -54,7 +54,37 @@ try{
     fs.writeFileSync('tests/artifacts/compacto-tela-celular.png',Buffer.from((await send('Page.captureScreenshot',{format:'png'})).data,'base64'));
     await evaluate('document.querySelector("#format").value="a4";document.querySelector("#format").dispatchEvent(new Event("change"))');
     assert.equal(await evaluate('document.querySelector(".sheet svg").getAttribute("viewBox")'),'0 0 800 1120');
-    console.log('OK: Chrome real — página compacta, PNG 300 dpi, tamanho físico, QR/60 bolhas em branco, tela desktop/celular sem rolagem horizontal e opção A4. Sem câmera física.');
+    await send('Page.navigate',{url:base+'#exam/'+process.env.MARIOPROVAS_TEST_EXAM});
+    await wait(()=>evaluate('Boolean(document.querySelector("#edit-grading"))'));
+    await evaluate('document.querySelector("#edit-grading").click()');
+    await wait(()=>evaluate('document.querySelector("#modal").open&&Boolean(document.querySelector("#grading-form"))'));
+    await evaluate('document.querySelector("#enable-grading").checked=true;document.querySelector("#enable-grading").dispatchEvent(new Event("change"))');
+    assert.equal(await evaluate('document.querySelector("#modal").scrollWidth<=document.querySelector("#modal").clientWidth'),true,'editor de notas sem rolagem horizontal');
+    const modalShot=async name=>{
+        const rect=await evaluate('(()=>{const r=document.querySelector("#modal").getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:Math.min(r.height,innerHeight-r.y),scale:1}})()');
+        fs.writeFileSync('tests/artifacts/'+name,Buffer.from((await send('Page.captureScreenshot',{format:'png',clip:rect})).data,'base64'));
+    };
+    await modalShot('notas-celular.png');
+    const closeDialog=()=>evaluate('new Promise(resolve=>{const m=document.querySelector("#modal");m.addEventListener("close",()=>resolve(true),{once:true});m.close();})');
+    await closeDialog();await evaluate('document.querySelector("#edit-key").click()');
+    assert.equal(await evaluate('document.querySelectorAll("[data-key]").length'),71);
+    assert.equal(await evaluate('document.querySelector("#modal").scrollWidth<=document.querySelector("#modal").clientWidth'),true,'gabarito sem rolagem horizontal');
+    await modalShot('gabarito-celular.png');
+    await closeDialog();await evaluate('document.querySelector("#scan").click()');
+    await wait(()=>evaluate('Boolean(document.querySelector("#start-camera"))'));
+    assert.equal(await evaluate('document.querySelector("#camera").srcObject'),null,'câmera não é solicitada ao abrir');
+    assert.equal(await evaluate('document.querySelector("#modal").scrollWidth<=innerWidth'),true,'leitor móvel sem overflow');
+    assert.equal(await evaluate('document.querySelector("#modal").classList.contains("scanner-dialog")'),true);
+    assert.equal(await evaluate('getComputedStyle(document.querySelector("#torch")).display'), 'none');
+    assert.equal(await evaluate('document.querySelector("#start-camera").getBoundingClientRect().height>=44'),true);
+    await modalShot('leitor-celular.png');
+    await closeDialog();await evaluate('location.hash="reports/'+process.env.MARIOPROVAS_TEST_EXAM+'"');
+    await wait(()=>evaluate('Boolean(document.querySelector("#report-class"))'));
+    for(const width of [320,390,1280]){
+        await send('Emulation.setDeviceMetricsOverride',{width,height:844,deviceScaleFactor:1,mobile:width<700});
+        assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true,`relatórios sem overflow em ${width}px`);
+    }
+    console.log('OK: Chrome real — PNG 300 dpi, QR/60 bolhas, compacto/A4; notas, gabarito e leitor em 390px; relatórios em 320/390/1280px sem rolagem horizontal. Câmera física não utilizada.');
 }finally{
     for(const task of pending.values()){clearTimeout(task.timer);task.reject(Error('Navegador encerrado.'));}pending.clear();
     socket?.close();browser.kill();await new Promise(resolve=>{if(browser.exitCode!==null)resolve();else{browser.once('exit',resolve);setTimeout(resolve,3000);}});

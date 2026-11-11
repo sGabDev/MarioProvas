@@ -1,6 +1,6 @@
-import {cardSvg,compactLayout,LAYOUT} from './layout.mjs?v=routes7';
-import {cardPng} from './png-export.mjs?v=routes7';
-import qrFactory from './vendor/qrcode.mjs?v=routes7';
+import {cardSvg,compactLayout,LAYOUT} from './layout.mjs?v=assessment8';
+import {cardPng} from './png-export.mjs?v=assessment8';
+import qrFactory from './vendor/qrcode.mjs?v=assessment8';
 const $=selector=>document.querySelector(selector);
 $('#print').onclick=()=>window.print();
 const params=new URLSearchParams(location.search);

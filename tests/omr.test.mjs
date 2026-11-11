@@ -160,3 +160,25 @@ test('busca de QR tolera baixo contraste sem aceitar um código desconhecido',()
     for(let i=0;i<image.data.length;i+=4)for(let k=0;k<3;k++)image.data[i+k]=155+Math.round(image.data[i+k]*.30);
     const qr=decodeQr(image,jsQR);assert.ok(qr);assert.equal(qr.data,card.token);
 });
+
+for(const [label,black,gain,gradient] of [['ambiente escuro',12,.23,0],['baixo contraste',105,.22,0],['sombra gradual',15,.30,.20]])test(`sem lanterna: ${label}, QR e respostas em pixels com ruído`,()=>{
+    const image={width:straight.width,height:straight.height,data:new Uint8ClampedArray(straight.data)};
+    let seed=12345;
+    for(let y=0;y<image.height;y++)for(let x=0;x<image.width;x++){
+        seed=(Math.imul(seed,1664525)+1013904223)>>>0;const noise=((seed>>>24)/255-.5)*4,i=(y*image.width+x)*4;
+        for(let c=0;c<3;c++)image.data[i+c]=black+straight.data[i+c]*(gain+gradient*x/image.width)+noise;
+    }
+    const qr=decodeQr(image,jsQR);assert.ok(qr,'QR com realce de contraste');
+    const r=readCard(image,qr,60,5);assert.deepEqual(r.answers,expected);assert.ok(r.quality.rawContrast>=30);
+    if(label==='ambiente escuro'){
+        const pixels=context.createImageData(image.width,image.height);pixels.data.set(image.data);context.putImageData(pixels,0,0);fs.writeFileSync('tests/artifacts/pouca-luz.png',canvas.toBuffer('image/png'));
+    }
+});
+
+test('escuridão sem informação suficiente é rejeitada em vez de inventar marcações',()=>{
+    const image={width:straight.width,height:straight.height,data:new Uint8ClampedArray(straight.data)};
+    for(let i=0;i<image.data.length;i+=4)for(let c=0;c<3;c++)image.data[i+c]=10+straight.data[i+c]*.08;
+    const qr=decodeQr(image,jsQR);
+    if(qr)assert.throws(()=>readCard(image,qr,60,5));
+    else assert.equal(qr,null);
+});

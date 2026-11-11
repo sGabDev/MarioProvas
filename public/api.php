@@ -3,13 +3,14 @@ declare(strict_types=1);
 require dirname(__DIR__).'/app/bootstrap.php';
 require dirname(__DIR__).'/app/import.php';
 require dirname(__DIR__).'/app/grading.php';
+require dirname(__DIR__).'/app/assessment.php';
 require dirname(__DIR__).'/app/reports.php';
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, private');header('X-Content-Type-Options: nosniff');header('Referrer-Policy: same-origin');
 start_session();
 try {
     $action=$_GET['action']??'state';$method=$_SERVER['REQUEST_METHOD'];
-    $write=['login','logout','setup','upload','preview','import','student_update','class_update','create_exam','generate_cards','scan','team_create'];
+    $write=['login','logout','setup','upload','preview','import','student_update','class_update','create_exam','generate_cards','scan','team_create','update_key','update_grading'];
     if(in_array($action,$write,true)){
         if($method!=='POST')fail('Método não permitido.',405);
         if(!hash_equals($_SESSION['csrf'],$_SERVER['HTTP_X_CSRF_TOKEN']??''))fail('Sessão expirada. Atualize a página.',403);
@@ -86,6 +87,8 @@ try {
                     foreach($cids as $selected)query('INSERT INTO exam_classes(exam_id,class_id) VALUES(?,?)',[$eid,$selected]);
                     foreach($students as $sid)query('INSERT INTO enrollments(exam_id,student_id,class_id) VALUES(?,?,?)',[$eid,$sid,$studentClasses[$sid]]);audit('exam.created',$eid);return ['id'=>$eid];});break;
             case 'exam': $out=exam_detail((int)($_GET['id']??0));break;
+            case 'update_key':$out=update_assessment((int)($body['exam_id']??0),$body,true);break;
+            case 'update_grading':$out=update_assessment((int)($body['exam_id']??0),$body,false);break;
             case 'generate_cards':
                 $id=(int)($body['exam_id']??0);$e=exam_detail($id);$count=(int)($body['count']??1);if($count<1||$count>200)fail('Gere de 1 a 200 conjuntos por lote.');
                 $reusable=($body['reusable']??true)!==false;
@@ -96,9 +99,9 @@ try {
                 $e=exam((int)($_GET['exam_id']??0));$out=['exam'=>$e,'questions'=>rows('SELECT q.number,a.name area FROM questions q JOIN areas a ON a.id=q.area_id WHERE q.exam_id=? ORDER BY q.number',[$e['id']]),'cards'=>rows('SELECT c.id,c.token,c.page,c.start_number,c.question_count,c.booklet_id,b.reusable FROM cards c JOIN booklets b ON b.id=c.booklet_id WHERE b.exam_id=? AND b.template_id IS NULL ORDER BY b.id,c.page',[$e['id']])];break;
             case 'identify': $out=identify_card((string)($_GET['token']??''),(int)($_GET['exam_id']??0));unset($out['scores']);break;
             case 'scan': $out=save_scan((int)($body['exam_id']??0),(string)($body['token']??''),(int)($body['student_id']??0),$body['scores']??[],$body['quality']??[]);break;
-            case 'report':$out=report((int)($_GET['id']??0));break;
+            case 'report':$out=report((int)($_GET['id']??0),(int)($_GET['class_id']??0),strval_trim($_GET['grade_name']??''));break;
             case 'individual':$out=individual_report((int)($_GET['id']??0));break;
-            case 'export':export_report((int)($_GET['id']??0));
+            case 'export':export_report((int)($_GET['id']??0),(int)($_GET['class_id']??0),strval_trim($_GET['grade_name']??''));
             case 'team':if($u['role']!=='admin')fail('Acesso exclusivo de administrador.',403);$out=rows('SELECT id,name,email,role FROM users WHERE school_id=?',[$school]);break;
             case 'team_create':
                 if($u['role']!=='admin')fail('Acesso exclusivo de administrador.',403);$email=mb_strtolower(text_field($body['email']??''));$pass=(string)($body['password']??'');if(!filter_var($email,FILTER_VALIDATE_EMAIL)||strlen($pass)<12||strlen($pass)>200)fail('Informe e-mail válido e senha de 12 a 200 caracteres.');if(one('SELECT id FROM users WHERE email=?',[$email]))fail('E-mail indisponível.');query('INSERT INTO users(school_id,name,email,password,role) VALUES(?,?,?,?,?)',[$school,text_field($body['name']??''),$email,password_hash($pass,PASSWORD_DEFAULT),'teacher']);audit('user.created',(int)db()->lastInsertId());$out=['message'=>'Professor cadastrado com acesso aos dados desta escola.'];break;

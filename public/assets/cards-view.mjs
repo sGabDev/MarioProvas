@@ -1,4 +1,4 @@
-import {escapeHtml as esc} from './layout.mjs?v=routes7';
+import {escapeHtml as esc} from './layout.mjs?v=assessment8';
 export function cardManagement(e,icon){
     const reusable=e.booklets.find(b=>b.reusable);
     return `<section class="card"><div class="card-header"><h2>Modelo de cartão-resposta</h2>${icon('print')}</div><p class="small muted">Baixe o cartão compacto em PNG para colocar na capa, ou imprima uma matriz e tire cópias. O mesmo QR pode ser lido para vários alunos; cada leitura fica associada ao estudante escolhido, sem compartilhar respostas.</p><p class="note">Uma cópia preenchida por estudante. Em provas com várias folhas, use as páginas do mesmo modelo e selecione o mesmo aluno em cada uma.</p><form id="generate" class="toolbar"><button type="submit">${icon('print')}${reusable?'Abrir modelo reutilizável para impressão':'Gerar modelo reutilizável'}</button></form>${e.booklets.length?`<div class="table-wrap"><table><thead><tr><th>Modelo / cartão</th><th>Uso</th><th>Andamento</th><th>PNG / imprimir</th></tr></thead><tbody>${e.booklets.map(b=>{

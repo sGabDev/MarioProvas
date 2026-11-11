@@ -32,7 +32,7 @@ let captureImage = null,
     cameraCalls = 0,
     trackStopped = false;
 const requestedConstraints=[];
-const videoTrack={stop:()=>trackStopped=true,getSettings:()=>({deviceId:'test-image',zoom:1}),getCapabilities:()=>({focusMode:['continuous','single-shot'],torch:true,zoom:{min:1,max:3,step:.1}}),applyConstraints:async value=>requestedConstraints.push(value)};
+const videoTrack={stop:()=>trackStopped=true,getSettings:()=>({deviceId:'test-image',zoom:1,exposureCompensation:0}),getCapabilities:()=>({focusMode:['continuous','single-shot'],exposureMode:['continuous'],whiteBalanceMode:['continuous'],exposureCompensation:{min:-2,max:2,step:.5},torch:true,zoom:{min:1,max:3,step:.1}}),applyConstraints:async value=>requestedConstraints.push(value)};
 dom.window.HTMLCanvasElement.prototype.getContext = function () {
     const element = this,
         surface = createCanvas(element.width, element.height),
@@ -173,13 +173,17 @@ registrationCtx.putImageData(grayScene,0,0);captureImage=await loadImage(registr
 await wait(() => $('#save-scan'));
 assert.ok($('#detected-card').getAttribute('points').length>0,'impressão acinzentada recupera as quatro referências e as respostas');
 assert.equal(cameraCalls, 1);
+assert.ok(requestedConstraints.some(c=>c.advanced?.[0]?.torch===false),'inicia sem lanterna');
+assert.ok(requestedConstraints.some(c=>c.advanced?.[0]?.exposureMode==='continuous'));
+assert.equal($('#exposure-control').hidden,false);
+$('#camera-exposure').value=1;$('#camera-exposure').dispatchEvent(new dom.window.Event('change',{bubbles:true}));
 assert.equal($('#torch').hidden,false);assert.equal($('#refocus').hidden,false);
 $('#torch').click();await wait(()=>$('#torch').getAttribute('aria-pressed')==='true');
 $('#camera-zoom').value=1.5;$('#camera-zoom').dispatchEvent(new dom.window.Event('change',{bubbles:true}));
 assert.ok(requestedConstraints.some(c=>c.advanced?.[0]?.focusMode==='continuous'));
 assert.ok(requestedConstraints.some(c=>c.advanced?.[0]?.torch===true));
 assert.ok(requestedConstraints.some(c=>c.advanced?.[0]?.zoom===1.5));
-assert.ok($('#review').textContent.includes('1 válidas'));
+assert.ok($('#review').textContent.includes('1 com uma marca'));
 assert.ok($('#review').textContent.includes('1 em branco'));
 assert.ok($('#review').textContent.includes('1 múltiplas'));
 const option=$('#scan-student option[value]:not([value=""])');
@@ -189,7 +193,7 @@ assert.equal($('#next-card'),null);
 const firstStudent=$('#scan-student').value;
 $('#assign').dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
 await wait(() => $('#next-card'));
-assert.ok($('#review').textContent.includes('1 acertos em 1 questões válidas; 2 anuladas.'));
+assert.ok($('#review').textContent.includes('1 acertos em 3 questões válidas; 2 erros; 0 anuladas pelo professor'));
 assert.equal(cameraCalls, 1, 'continua sem reiniciar getUserMedia');
 assert.equal($('#saved-count').textContent,'1');
 await wait(()=>$('#camera-status').textContent.includes('Retire a folha já salva'));
@@ -207,12 +211,39 @@ assert.equal(cameraCalls,1,'o mesmo QR é lançado para o segundo estudante sem 
 $('#close-scan').click();
 assert.equal($('#modal').open, false);
 assert.ok(trackStopped, 'fechar leitor encerra a câmera');
+$('#edit-grading').click();await wait(()=>$('#grading-form'));
+$('#enable-grading').checked=true;$('#enable-grading').dispatchEvent(new dom.window.Event('change',{bubbles:true}));
+$('#metric-0').value='percentage';$('#metric-0').dispatchEvent(new dom.window.Event('change',{bubbles:true}));
+function band(selector,value){$(selector).value=value;$(selector).dispatchEvent(new dom.window.Event('input',{bubbles:true}));}
+band('#band-0-0-max',50);band('#band-0-0-points',2);$('[data-add-band]').click();
+band('#band-0-1-max',100);band('#band-0-1-points',10);
+$('#grading-form').dispatchEvent(new dom.window.Event('submit',{bubbles:true,cancelable:true}));
+await wait(()=>!$('#modal').open&&$('#main').textContent.includes('Nota por faixa'));
+$('#edit-key').click();await wait(()=>$('#edit-key-form'));
+const keySelects=[...document.querySelectorAll('[data-key]')],annuls=[...document.querySelectorAll('[data-annul]')];
+keySelects[0].value='B';annuls[1].checked=true;annuls[1].dispatchEvent(new dom.window.Event('change',{bubbles:true}));
+assert.equal(keySelects[1].disabled,true);
+$('#edit-key-form').dispatchEvent(new dom.window.Event('submit',{bubbles:true,cancelable:true}));
+await wait(()=>!$('#modal').open&&$('#main').textContent.includes('2 · Anulada'));
 await go(`reports/${eid}`, '#question-table');
 assert.ok($('#main').textContent.includes('2 resultados completos'));
 assert.ok($('#main').textContent.includes('Comparação entre turmas deste simulado'));
+assert.ok($('#main').textContent.includes('Anulada para todos'));
+const rr=(await(await fetch(`api.php?action=report&id=${eid}`)).json()).data;
+assert.ok(rr.students.every(s=>s.correct===0&&s.incorrect===2&&s.credited===1&&s.grade===2));
+const emptyClass=rr.available_classes.find(c=>!rr.students.some(s=>s.class_id===c.id));assert.ok(emptyClass);
+$('#report-class').value=emptyClass.id;$('#report-class').dispatchEvent(new dom.window.Event('change',{bubbles:true}));
+await wait(()=>$('#main').textContent.includes('0 resultados completos'));
+assert.ok($('#export-results').href.includes(`class_id=${emptyClass.id}`));
+$('#clear-report-filters').click();await wait(()=>$('#main').textContent.includes('2 resultados completos'));
+$('#report-grade').value='SÉRIE DE VERIFICAÇÃO DA INTERFACE';$('#report-grade').dispatchEvent(new dom.window.Event('change',{bubbles:true}));
+await wait(()=>$('#export-results').href.includes('grade_name=S%C3%89RIE'));
+assert.ok($('#main').textContent.includes('2 resultados completos'));
+$('#clear-report-filters').click();await wait(()=>$('#export-results').href.endsWith('grade_name='));
 document.querySelector('[data-result]').click();
 await wait(() => $('#modal').open);
 assert.ok($('#modal').textContent.includes('2'));
+assert.ok($('#modal').textContent.includes('Anulada para todos')&&$('#modal').textContent.includes('Incorreta: múltiplas'));
 $('#modal [data-close]').click();
 await go('import', '#upload');
 assert.ok($('#csv').accept.includes('.csv'));

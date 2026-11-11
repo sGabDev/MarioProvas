@@ -35,6 +35,7 @@ function audit(string $event, int $id=0): void { $u=current_user(); query('INSER
 function current_user(): ?array { return isset($_SESSION['uid']) ? one('SELECT id,school_id,name,email,role FROM users WHERE id=?',[$_SESSION['uid']]) : null; }
 function require_user(): array { $u=current_user(); if(!$u) fail('Entre para continuar.',401); return $u; }
 function with_exam_classes(array $e): array {
+    if(isset($e['grading_policy'])&&is_string($e['grading_policy']))$e['grading_policy']=json_decode($e['grading_policy'],true);
     $e['classes']=rows('SELECT c.id,c.name,c.grade_name FROM exam_classes ec JOIN classes c ON c.id=ec.class_id WHERE ec.exam_id=? ORDER BY c.name',[$e['id']]);
     $e['class_ids']=array_map('intval',array_column($e['classes'],'id'));
     $e['class_name']=implode(' · ',array_column($e['classes'],'name'));

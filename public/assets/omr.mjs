@@ -1,5 +1,6 @@
-import {findFiducials} from './fiducials.mjs?v=routes7';
-import { LAYOUT, QR_LAYOUTS, compactLayout, bubblePosition } from './layout.mjs?v=routes7';
+import {findFiducials} from './fiducials.mjs?v=assessment8';
+import {normalizeIllumination} from './illumination.mjs?v=assessment8';
+import { LAYOUT, QR_LAYOUTS, compactLayout, bubblePosition } from './layout.mjs?v=assessment8';
 export class ReadError extends Error {
     constructor(code, message, details = {}) {
         super(message);
@@ -126,7 +127,9 @@ export function alignCard(image, qr, layout=LAYOUT) {
     // Mesmo mínimo do servidor: não apresentar como pronta uma captura
     // distante que seria rejeitada somente na hora de salvar.
     if(coverage<.12)throw new ReadError('distance','QR identificado. Aproxime o cartão inteiro, com as quatro marcas, para ler as respostas.');
-    const normalized = warp(inkChannel(image), w, h, transform, layout);
+    const calibrated=normalizeIllumination(warp(inkChannel(image),w,h,transform,layout),layout);
+    if(!calibrated.normalized)throw new ReadError('light','Pouca informação de contraste no papel. Aproxime o cartão e aumente a luz ambiente, sem reflexos.');
+    const normalized=calibrated.normalized;
     let dark = 0,
         light = 0,
         dn = 0,
@@ -165,7 +168,7 @@ export function alignCard(image, qr, layout=LAYOUT) {
     if (contrast < 90) throw new ReadError('light', 'Contraste insuficiente. Melhore a iluminação e evite reflexos.');
     if (sharpness < 55)
         throw new ReadError('blur', 'Imagem desfocada. Limpe a lente, estabilize a câmera e tente novamente.');
-    return { normalized, layout, markers: found, quality: { markerCount: 4, contrast, sharpness, coverage } };
+    return { normalized, layout, markers: found, quality: { markerCount: 4, contrast, rawContrast:calibrated.rawContrast, sharpness, coverage } };
 }
 const samplingCache=new Map();
 function sampling(width){

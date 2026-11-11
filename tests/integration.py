@@ -110,14 +110,14 @@ try:
     check(True,'cartão já processado não duplica leitura')
     c.call('scan',{**scan,'token':second['token'],'student_id':members[1]['id'],'scores':[[0]*5]*11},expected=409)
     out=c.call('scan',{**scan,'token':second['token'],'scores':[[0]*5]*11})
-    check(out['complete'] and out['correct']==11 and out['valid']==58 and out['annulled']==13 and out['percentage']==18.97,'correção com evidência óptica: 11 acertos, 58 válidas, 13 anuladas')
+    check(out['complete'] and out['correct']==11 and out['valid']==71 and out['annulled']==0 and out['incorrect']==60 and out['percentage']==15.49,'correção com evidência óptica: 11 acertos, 71 válidas, 60 erros, nenhuma anulação automática')
     c.call('scan',{**scan,'token':cards[2]['token']},expected=409)
     check(True,'mesmo estudante não recebe dois resultados nem dois conjuntos')
     report=c.call('report',params={'id':eid});individual=c.call('individual',params={'id':out['result_id']})
     check(len(report['students'])==1 and len(report['areas'])==3 and len(report['questions'])==71 and len(individual['responses'])==71,'relatórios por estudante, área e questão calculados de respostas persistidas')
     check(sum(q['blank'] for q in report['questions'])==12 and sum(q['multiple'] for q in report['questions'])==1,'relatório separa respostas em branco de marcações múltiplas')
     exported=c.call('export',params={'id':eid},raw=True);csv_rows=list(csv.reader(io.StringIO(exported.decode('utf-8-sig')),delimiter=';'))
-    check(len(csv_rows)==5 and len(csv_rows[0])==11,'exportação UTF-8/Excel com escola, turma, estudante, áreas e total')
+    check(len(csv_rows)==5 and len(csv_rows[0])==15,'exportação UTF-8/Excel com escola, turma, estudante, áreas e total')
     # Mesma avaliação para duas turmas, mesmo QR e tentativas independentes.
     cid2=next(s['class_id'] for s in ss if s['class_id']!=cid)
     sid2=next(s['id'] for s in ss if s['class_id']==cid2)
@@ -137,7 +137,7 @@ try:
     check(c.call('identify',params={'exam_id':multi,'token':p1['token']})['scanned_at'] is None and len(c.call('report',params={'id':multi})['students'])==0,'mesmo QR aceita dois estudantes, mantém páginas pendentes e rejeita repetição para o mesmo aluno')
     result2=c.call('scan',{**common,'token':p2['token'],'student_id':sid2,'scores':[[1,0,0,0,0]]*11})
     result1=c.call('scan',{**common,'token':p2['token'],'student_id':sid,'scores':[[0]*5]*11})
-    check(result1['correct']==11 and result1['valid']==58 and result1['annulled']==13 and result2['correct']==11 and result2['valid']==71 and result2['annulled']==0 and result1['booklet_id']!=result2['booklet_id'],'páginas intercaladas do mesmo modelo mantêm respostas, anuladas e resultados independentes')
+    check(result1['correct']==11 and result1['valid']==71 and result1['annulled']==0 and result2['correct']==11 and result2['valid']==71 and result2['annulled']==0 and result1['booklet_id']!=result2['booklet_id'],'páginas intercaladas do mesmo modelo mantêm respostas, anuladas e resultados independentes')
     c.call('scan',{**common,'token':p2['token'],'student_id':sid,'scores':[[0]*5]*11},expected=409)
     model_detail=c.call('exam',params={'id':multi})
     check(len(model_detail['booklets'])==1 and model_detail['booklets'][0]['uses']==2 and model_detail['booklets'][0]['completed']==2 and len(c.call('cards',params={'exam_id':multi})['cards'])==2,'impressão expõe apenas páginas do modelo; tentativas pessoais ficam separadas')
@@ -145,6 +145,8 @@ try:
     multi_csv=list(csv.reader(io.StringIO(c.call('export',params={'id':multi},raw=True).decode('utf-8-sig')),delimiter=';'))
     expected_class_names={x['name'] for x in detail['classes']}
     check(len(multi_report['students'])==2 and len(multi_report['classes'])==2 and {x[2] for x in multi_csv[1:]}==expected_class_names and sum(x['total'] for x in multi_report['classes'])==2,'relatório compara as turmas e CSV exporta a turma individual de cada estudante')
+    from assessment import verify
+    verify(c,check,temp/'test.sqlite',multi,cid,cid2,cid3,sid,sid2)
     c.call('class_update',{'id':cid,'grade_name':'SÉRIE DE VERIFICAÇÃO ISOLADA'})
     c.call('class_update',{'id':cid2,'grade_name':'SÉRIE DE VERIFICAÇÃO ISOLADA'})
     grade_exam=c.call('create_exam',{**create,'scope':'grade','grade_name':'SÉRIE DE VERIFICAÇÃO ISOLADA','students':[sid]})['id']
@@ -169,6 +171,8 @@ try:
     b.call('class_update',{'id':cid,'grade_name':'x'},expected=404)
     b.call('create_exam',{**create,'class_ids':[cid,cid2]},expected=422)
     b.call('identify',params={'exam_id':multi,'token':p1['token']},expected=404)
+    b.call('update_key',{'exam_id':multi,'revision':1,'questions':[]},expected=404)
+    b.call('update_grading',{'exam_id':multi,'revision':1,'grading_policy':None},expected=404)
     check(not b.call('students') and not b.call('dashboard')['exams'],'isolamento entre escolas em estudantes, avaliações, leitura, relatórios e exportação')
     # Arquivos privados nem estão sob o document root usado no teste.
     for path in ['../ID_EEEM_MARIO__29311.csv','storage/marioprovas.sqlite','app/schema.sql','config.php']:

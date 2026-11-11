@@ -19,28 +19,31 @@ function marks_from_scores(array $scores, int $alternatives): array
     }
     return $marks;
 }
-function calculate_result(array $questions, array $marks): array
+function calculate_result(array $questions, array $marks, string $annulmentMode='credit'): array
 {
     if (count($questions) !== count($marks))
         fail('Cartão incompleto.');
     $correct = 0;
     $valid = 0;
     $annulled = 0;
+    $credited = 0;
     $responses = [];
     foreach ($questions as $i => $q) {
         $m = $marks[$i];
-        if (count($m) !== 1) {
-            $status = count($m) === 0 ? 'blank' : 'multiple';
+        if (!empty($q['annulled'])) {
+            $status = 'annulled';
             $annulled++;
+            if($annulmentMode==='credit')$credited++;
         } else {
             $valid++;
-            $status = $m[0] === $q['answer'] ? 'correct' : 'incorrect';
+            $status = count($m)===0?'blank':(count($m)>1?'multiple':($m[0] === $q['answer'] ? 'correct' : 'incorrect'));
             if ($status === 'correct')
                 $correct++;
         }
         $responses[] = ['question_id' => $q['id'], 'marked' => implode(',', $m), 'status' => $status];
     }
-    return ['correct' => $correct, 'valid' => $valid, 'annulled' => $annulled, 'percentage' => $valid ? round(100 * $correct / $valid, 2) : null, 'responses' => $responses];
+    $considered=$valid+$credited;
+    return ['correct'=>$correct,'valid'=>$valid,'annulled'=>$annulled,'credited'=>$credited,'considered'=>$considered,'incorrect'=>$valid-$correct,'percentage'=>$considered?round(100*($correct+$credited)/$considered,2):null,'responses'=>$responses];
 }
 function identify_card(string $token, int $examId): array
 {
@@ -102,11 +105,12 @@ function save_scan(int $examId, string $token, int $studentId, array $scores, ar
         foreach ($cards as $page)
             $marks = array_merge($marks, marks_from_scores(json_decode($page['scores'], true), (int) $e['alternatives']));
         $qs = rows('SELECT * FROM questions WHERE exam_id=? ORDER BY number', [$examId]);
-        $r = calculate_result($qs, $marks);
-        query('INSERT INTO results(exam_id,student_id,booklet_id,correct,valid,annulled,percentage) VALUES(?,?,?,?,?,?,?)', [$examId, $studentId, $c['booklet'], $r['correct'], $r['valid'], $r['annulled'], $r['percentage']]);
+        $r = calculate_result($qs, $marks,$e['annulment_mode']);
+        $grade=grade_breakdown($e,$qs,$r['responses'])['total'];
+        query('INSERT INTO results(exam_id,student_id,booklet_id,correct,valid,annulled,percentage,credited,grade) VALUES(?,?,?,?,?,?,?,?,?)', [$examId, $studentId, $c['booklet'], $r['correct'], $r['valid'], $r['annulled'], $r['percentage'],$r['credited'],$grade]);
         $rid = (int) db()->lastInsertId();
         foreach ($r['responses'] as $a)
             query('INSERT INTO responses(result_id,question_id,marked,status) VALUES(?,?,?,?)', [$rid, $a['question_id'], $a['marked'], $a['status']]);
-        return ['complete' => true, 'booklet_id'=>(int)$c['booklet'], 'template_id'=>$templateId, 'scanned_page'=>(int)$c['page'], 'result_id' => $rid, 'correct' => $r['correct'], 'valid' => $r['valid'], 'annulled' => $r['annulled'], 'percentage' => $r['percentage'], 'message' => 'Resultado corrigido e salvo.'];
+        return ['complete'=>true,'booklet_id'=>(int)$c['booklet'],'template_id'=>$templateId,'scanned_page'=>(int)$c['page'],'result_id'=>$rid,'correct'=>$r['correct'],'valid'=>$r['valid'],'annulled'=>$r['annulled'],'credited'=>$r['credited'],'incorrect'=>$r['incorrect'],'grade'=>$grade,'percentage'=>$r['percentage'],'message'=>'Resultado corrigido e salvo.'];
     });
 }

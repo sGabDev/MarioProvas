@@ -42,7 +42,7 @@ export function decodeQr(image,decoder,{previous=null,hint=null,thorough=true}={
         if(thorough)yield crop(image,{x:0,y:0,width:image.width,height:image.height*.56},1300);
     }
     let result=null,precise=false;
-    for(const region of regions()){result=decode(region);if(result){precise=region.scaleX===1&&region.scaleY===1;break;}}
+    for(const region of regions()){result=decode(region)||(region&&(previous||hint||thorough)?decode(contrast(region),true):null);if(result){precise=region.scaleX===1&&region.scaleY===1;break;}}
     if(!result&&thorough){const full=crop(image,whole,1500);result=decode(full)||decode(contrast(full),true);}
     if(!result)return null;
     // Refina os cantos em resolução original: um erro pequeno no QR pode se
