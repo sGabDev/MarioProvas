@@ -13,3 +13,8 @@ Header always set Content-Security-Policy "default-src 'self'; script-src 'self'
 Header always set Cache-Control "no-store, private"
 </IfModule>
 </FilesMatch>
+<FilesMatch "\.(?:mjs|js|css)$">
+<IfModule mod_headers.c>
+Header always set Cache-Control "no-cache"
+</IfModule>
+</FilesMatch>

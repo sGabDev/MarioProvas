@@ -1,4 +1,4 @@
-import {cardSvg} from './layout.mjs';
+import {cardSvg} from './layout.mjs?v=reader3';
 document.querySelector('#print').onclick=()=>window.print();
 try{
  const params=new URLSearchParams(location.search),id=params.get('exam'),selected=(params.get('sets')||'').split(',').map(Number);

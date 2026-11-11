@@ -6,6 +6,7 @@ import { createCanvas, loadImage } from '@napi-rs/canvas';
 import { Resvg } from '@resvg/resvg-js';
 import { cardSvg } from '../public/assets/layout.mjs';
 import { readCard, homography, project } from '../public/assets/omr.mjs';
+import {decodeQr} from '../public/assets/qr.mjs';
 const require = createRequire(import.meta.url),
     jsQR = require('../public/assets/vendor/jsQR.js'),
     qrcode = require('../public/assets/vendor/qrcode.js');
@@ -135,4 +136,27 @@ test('QR contém somente token aleatório, sem nome ou respostas', () => {
     const qr = jsQR(straight.data, 1000, 1400);
     assert.match(qr.data, /^[a-f0-9]{32}$/);
     assert.equal(qr.data, card.token);
+});
+
+const inks=[['preta','#171717'],['azul','#164cd4'],['vermelha','#e22936'],['verde','#259b54'],['roxa','#9143b4'],['rosa','#ed68b7'],['laranja','#f39432'],['amarela','#f8e53a'],['ciano','#24d5e6'],['marrom','#966441'],['cinza','#b9b9b9'],['rosa clara','#f9cfdf'],['amarelo claro','#fff5ce'],['cinza clara','#d0d0d0']];
+for(const [name,color] of inks)test(`preenchimento em caneta ${name} preserva válidas, branco e múltiplas`,async()=>{
+    const colored=svg.replace(/fill="black"\/>/g,`fill="${color}"/>`);
+    const im=await loadImage(new Resvg(colored,{fitTo:{mode:'width',value:1000}}).render().asPng());
+    const c=createCanvas(1000,1400),cx=c.getContext('2d');cx.drawImage(im,0,0);const image=cx.getImageData(0,0,1000,1400);
+    const qr=decodeQr(image,jsQR);assert.ok(qr,'QR precisa ser identificado');const r=readCard(image,qr,60,5);assert.deepEqual(r.answers,expected);assert.equal(r.blank,1);assert.equal(r.multiple,1);
+});
+test('cartões antigos com QR menor continuam reconhecidos',async()=>{
+    const legacy=cardSvg({...card,layoutVersion:1},exam,qs,qrcode).replace('</svg>',fill+'</svg>');
+    const im=await loadImage(new Resvg(legacy,{fitTo:{mode:'width',value:1000}}).render().asPng());const c=createCanvas(1000,1400),cx=c.getContext('2d');cx.drawImage(im,0,0);const image=cx.getImageData(0,0,1000,1400),qr=decodeQr(image,jsQR);
+    assert.ok(qr);assert.deepEqual(readCard(image,qr,60,5).answers,expected);
+});
+test('QR é reconhecido com resolução menor, papel deslocado e busca pelo último recorte',async()=>{
+    const c=createCanvas(1024,768),cx=c.getContext('2d');cx.fillStyle='#d6d9d0';cx.fillRect(0,0,1024,768);cx.drawImage(original,290,18,510,714);
+    const image=cx.getImageData(0,0,1024,768),qr=decodeQr(image,jsQR);assert.ok(qr);assert.equal(qr.data,card.token);
+    const next=decodeQr(image,jsQR,{previous:qr,thorough:false});assert.ok(next);assert.deepEqual(readCard(image,next,60,5).answers,expected);
+});
+test('busca de QR tolera baixo contraste sem aceitar um código desconhecido',()=>{
+    const image={width:straight.width,height:straight.height,data:new Uint8ClampedArray(straight.data)};
+    for(let i=0;i<image.data.length;i+=4)for(let k=0;k<3;k++)image.data[i+k]=155+Math.round(image.data[i+k]*.30);
+    const qr=decodeQr(image,jsQR);assert.ok(qr);assert.equal(qr.data,card.token);
 });

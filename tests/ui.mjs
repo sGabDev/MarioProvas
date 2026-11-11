@@ -31,6 +31,8 @@ dom.window.HTMLDialogElement.prototype.close = function () {
 let captureImage = null,
     cameraCalls = 0,
     trackStopped = false;
+const requestedConstraints=[];
+const videoTrack={stop:()=>trackStopped=true,getSettings:()=>({deviceId:'test-image',zoom:1}),getCapabilities:()=>({focusMode:['continuous','single-shot'],torch:true,zoom:{min:1,max:3,step:.1}}),applyConstraints:async value=>requestedConstraints.push(value)};
 dom.window.HTMLCanvasElement.prototype.getContext = function () {
     const element = this,
         surface = createCanvas(element.width, element.height),
@@ -68,8 +70,8 @@ Object.defineProperty(navigator, 'mediaDevices', {
         getUserMedia: async () => {
             cameraCalls++;
             return {
-                getTracks: () => [{ stop: () => (trackStopped = true) }],
-                getVideoTracks: () => [{ getSettings: () => ({ deviceId: 'test-image' }) }],
+                getTracks: () => [videoTrack],
+                getVideoTracks: () => [videoTrack],
             };
         },
         enumerateDevices: async () => [{ kind: 'videoinput', deviceId: 'test-image', label: 'Imagem óptica de teste' }],
@@ -161,16 +163,25 @@ captureImage = await loadImage(new Resvg(optical, { fitTo: { mode: 'width', valu
 $('#start-camera').click();
 await wait(() => $('#save-scan'));
 assert.equal(cameraCalls, 1);
+assert.equal($('#torch').hidden,false);assert.equal($('#refocus').hidden,false);
+$('#torch').click();await wait(()=>$('#torch').getAttribute('aria-pressed')==='true');
+$('#camera-zoom').value=1.5;$('#camera-zoom').dispatchEvent(new dom.window.Event('change',{bubbles:true}));
+assert.ok(requestedConstraints.some(c=>c.advanced?.[0]?.focusMode==='continuous'));
+assert.ok(requestedConstraints.some(c=>c.advanced?.[0]?.torch===true));
+assert.ok(requestedConstraints.some(c=>c.advanced?.[0]?.zoom===1.5));
 assert.ok($('#review').textContent.includes('1 válidas'));
 assert.ok($('#review').textContent.includes('1 em branco'));
 assert.ok($('#review').textContent.includes('1 múltiplas'));
-$('#scan-student').value = $('#scan-student option[value]:not([value=""])').value;
+const option=$('#scan-student option[value]:not([value=""])');
+$('#student-search').value=option.textContent.split(' · ').at(-1);$('#student-search').dispatchEvent(new dom.window.Event('input',{bubbles:true}));
+assert.equal($('#scan-student').value,option.value,'busca pela matrícula seleciona o único resultado, sem salvar automaticamente');
+assert.equal($('#next-card'),null);
 const firstStudent=$('#scan-student').value;
 $('#assign').dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
 await wait(() => $('#next-card'));
 assert.ok($('#review').textContent.includes('1 acertos em 1 questões válidas; 2 anuladas.'));
-$('#next-card').click();
 assert.equal(cameraCalls, 1, 'continua sem reiniciar getUserMedia');
+assert.equal($('#saved-count').textContent,'1');
 await wait(()=>$('#camera-status').textContent.includes('Retire a folha já salva'));
 const captured=captureImage,blank=createCanvas(1000,1400);blank.getContext('2d').fillStyle='white';blank.getContext('2d').fillRect(0,0,1000,1400);captureImage=await loadImage(blank.toBuffer('image/png'));
 await wait(()=>$('#camera-status').textContent.includes('QR não identificado'));

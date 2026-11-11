@@ -1,5 +1,16 @@
 # Registro de verificação — 10/11/2026
 
+## Leitor atualizado em 11/11/2026 — cores, QR e agilidade
+
+- **24 testes ópticos aprovados**: os sete cenários anteriores mais preenchimentos em 14 cores/tons (preto, azul, vermelho, verde, roxo, rosa, laranja, amarelo, ciano, marrom, cinza, rosa claro, amarelo claro e cinza claro), QR menor dos cartões antigos, leitura em resolução menor com folha deslocada, recorte da última posição e QR com baixo contraste. Em todos os testes de tinta, branco e múltiplas continuam separados.
+- **3 testes do motor aprovados**: protocolo de mensagens executado em worker real, fallback sem worker e medição de capturas consecutivas. O harness Node adapta somente o ambiente do worker; o decodificador QR e o OMR são os módulos de produção.
+- As **35 verificações de integração** continuam aprovadas. O teste DOM da interface também passou com busca por matrícula, foco contínuo solicitado quando suportado, comandos de luz/zoom, salvamento e retomada automática sem clicar em Próximo cartão, bloqueio da folha anterior e dois resultados usando o mesmo QR. A câmera deste teste continua sendo uma fonte de pixels controlada, sem dispositivo físico.
+- Medição local, cartão digital de 60 questões em 1000 × 1400 px: mediana de aproximadamente **80 ms por captura consecutiva** incluindo QR e OMR, após aquecimento. A etapa OMR passou de cerca de 53 ms para 35 ms. Esses números não incluem tempo de foco, permissão, exposição, movimentação do papel ou rede e não são promessa de desempenho no celular. A espera fixa anterior de 550 ms entre tentativas foi removida.
+- O QR nas novas impressões cresceu de 132 para 160 unidades, com margem branca de quatro módulos. O leitor aceita ambas as geometrias e refina os cantos em recorte de resolução original. A identificação do simulado e a validação de duplicidade no servidor permanecem.
+- O detector usa o canal de cor mais escuro com realce de saturação e preenchimento local. Não há exigência de caneta preta. Tinta invisível, quase branca, metálica/reflexiva ou sem contraste com o papel pode continuar exigindo nova leitura. Não foi feita homologação com todas as tintas físicas do mercado.
+- A tela foi reorganizada em câmera com guia de folha inteira, etapas de progresso, painel de aluno, busca, contadores e confirmação compacta. A análise usa worker em navegadores compatíveis e mantém duas capturas concordantes. O desenho da folha e as alternativas não precisam ser digitados.
+- Houve nova tentativa de inspeção visual pelo adaptador do Chrome; as janelas minimizadas não puderam ser capturadas, e o conector de abas continuou indisponível. Assim, esta atualização não declara inspeção visual interativa ou captura com câmera física concluída.
+
 ## Atualização de 11/11/2026 — várias turmas e QR reutilizável
 
 - Os 7 testes ópticos continuam aprovados, sem alteração no reconhecimento das bolhas.
