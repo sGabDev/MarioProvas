@@ -1,0 +1,15 @@
+{
+  "name": "marioprovas",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Ferramentas locais de verificação óptica; a aplicação em produção usa somente PHP.",
+  "scripts": {
+    "test:omr": "node --test tests/omr.test.mjs",
+    "icons": "node scripts/icons.mjs"
+  },
+  "devDependencies": {
+    "@napi-rs/canvas": "0.1.80",
+    "@resvg/resvg-js": "2.6.2",
+    "jsdom": "26.1.0"
+  }
+}

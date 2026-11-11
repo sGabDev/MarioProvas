@@ -1,0 +1,17 @@
+PRAGMA foreign_keys=ON;
+CREATE TABLE IF NOT EXISTS schools(id INTEGER PRIMARY KEY, name TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, school_id INTEGER NOT NULL REFERENCES schools(id), name TEXT NOT NULL, email TEXT NOT NULL UNIQUE COLLATE NOCASE, password TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN ('admin','teacher')));
+CREATE TABLE IF NOT EXISTS classes(id INTEGER PRIMARY KEY, school_id INTEGER NOT NULL REFERENCES schools(id), name TEXT NOT NULL, UNIQUE(school_id,name));
+CREATE TABLE IF NOT EXISTS students(id INTEGER PRIMARY KEY, school_id INTEGER NOT NULL REFERENCES schools(id), external_id TEXT NOT NULL, name TEXT NOT NULL, social_name TEXT NOT NULL DEFAULT '', class_id INTEGER NOT NULL REFERENCES classes(id), UNIQUE(school_id,external_id));
+CREATE TABLE IF NOT EXISTS exams(id INTEGER PRIMARY KEY, school_id INTEGER NOT NULL REFERENCES schools(id), class_id INTEGER NOT NULL REFERENCES classes(id), name TEXT NOT NULL, date TEXT NOT NULL, alternatives INTEGER NOT NULL, created_by INTEGER NOT NULL REFERENCES users(id), created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS areas(id INTEGER PRIMARY KEY, exam_id INTEGER NOT NULL REFERENCES exams(id), name TEXT NOT NULL, position INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS questions(id INTEGER PRIMARY KEY, exam_id INTEGER NOT NULL REFERENCES exams(id), area_id INTEGER NOT NULL REFERENCES areas(id), number INTEGER NOT NULL, answer TEXT NOT NULL, UNIQUE(exam_id,number));
+CREATE TABLE IF NOT EXISTS enrollments(exam_id INTEGER NOT NULL REFERENCES exams(id), student_id INTEGER NOT NULL REFERENCES students(id), PRIMARY KEY(exam_id,student_id));
+CREATE TABLE IF NOT EXISTS booklets(id INTEGER PRIMARY KEY, exam_id INTEGER NOT NULL REFERENCES exams(id), student_id INTEGER REFERENCES students(id), created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(exam_id,student_id));
+CREATE TABLE IF NOT EXISTS cards(id INTEGER PRIMARY KEY, booklet_id INTEGER NOT NULL REFERENCES booklets(id), token TEXT NOT NULL UNIQUE, page INTEGER NOT NULL, start_number INTEGER NOT NULL, question_count INTEGER NOT NULL, scores TEXT, scanned_at TEXT, scanned_by INTEGER REFERENCES users(id), UNIQUE(booklet_id,page));
+CREATE TABLE IF NOT EXISTS results(id INTEGER PRIMARY KEY, exam_id INTEGER NOT NULL REFERENCES exams(id), student_id INTEGER NOT NULL REFERENCES students(id), booklet_id INTEGER NOT NULL UNIQUE REFERENCES booklets(id), correct INTEGER NOT NULL, valid INTEGER NOT NULL, annulled INTEGER NOT NULL, percentage REAL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(exam_id,student_id));
+CREATE TABLE IF NOT EXISTS responses(result_id INTEGER NOT NULL REFERENCES results(id), question_id INTEGER NOT NULL REFERENCES questions(id), marked TEXT, status TEXT NOT NULL CHECK(status IN ('correct','incorrect','blank','multiple')), PRIMARY KEY(result_id,question_id));
+CREATE TABLE IF NOT EXISTS login_attempts(key TEXT PRIMARY KEY, attempts INTEGER NOT NULL, started INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY, school_id INTEGER NOT NULL, user_id INTEGER, event TEXT NOT NULL, entity_id INTEGER, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE INDEX IF NOT EXISTS students_class ON students(class_id);
+CREATE INDEX IF NOT EXISTS exams_school ON exams(school_id,date);

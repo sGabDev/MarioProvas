@@ -1,0 +1,18 @@
+{
+  "jsQR.js": {
+    "source": "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js",
+    "sha256": "bc40c8a15196236b2314db0856f72ca0b49980cd5413b8c852a7349f5fee0859"
+  },
+  "qrcode.js": {
+    "source": "https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js",
+    "sha256": "18ae399f81182bc9de916e9c77b195df20cc58d6f2d55a62b085a299f1bf1780"
+  },
+  "qrcode.LICENSE": {
+    "source": "https://raw.githubusercontent.com/kazuhikoarase/qrcode-generator/master/LICENSE",
+    "sha256": "3a850fa5f08101db6f40676c2786e10bd2cd5fff7b12ffdf1e0c434d4e49d90c"
+  },
+  "jsQR.LICENSE": {
+    "source": "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/LICENSE",
+    "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08"
+  }
+}

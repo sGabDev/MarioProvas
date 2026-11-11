@@ -1,0 +1,9 @@
+/storage/*
+!/storage/.htaccess
+!/storage/.gitkeep
+/config.php
+/*.csv
+/tests/artifacts/
+/dist/
+*.log
+/node_modules/
