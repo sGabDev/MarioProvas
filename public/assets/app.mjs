@@ -1,7 +1,7 @@
 import {cardManagement} from './cards-view.mjs';
 import {buildAudience} from './audience.mjs';
-import { escapeHtml as esc } from './layout.mjs?v=reader3';
-import { openScanner, stopScanner } from './scanner.mjs?v=reader3';
+import { escapeHtml as esc } from './layout.mjs?v=reader4';
+import { openScanner, stopScanner } from './scanner.mjs?v=reader4';
 const $ = (s, root = document) => root.querySelector(s),
     $$ = (s, root = document) => [...root.querySelectorAll(s)];
 let state = {},

@@ -1,5 +1,16 @@
 # Registro de verificação — 10/11/2026
 
+## Correção de alinhamento em 11/11/2026 — leitor 4
+
+- Reproduzido o aviso relatado: QR decodificado, folha inteira e quatro referências presentes, mas nenhuma referência aceita quando a impressão/exposição elevava o preto para cinza 135/255. O detector anterior exigia pixels abaixo de 100/255. O mesmo cenário agora reconhece as 60 questões, incluindo branco e múltiplas.
+- As referências passam a usar contraste local, contorno de quadrilátero sólido e centro pelas diagonais. A busca tolera erro na extrapolação dos cantos do QR e confere convexidade, dimensões projetadas e concordância entre QR e referências. Letras e bolhas preenchidas não podem substituir um quadrado ausente. A leitura faz ajuste fino pelos contornos das bolhas.
+- Corrigido o repasse explícito de `data`, `width` e `height` do ImageData no decodificador QR. O espalhamento do objeto anterior perdia propriedades não enumeráveis de implementações de ImageData, causando erro em imagens pequenas sem redimensionamento.
+- **35 testes ópticos/do motor aprovados**: 24 anteriores, 8 novos de registro e 3 do motor. Os novos cobrem perspectiva acentuada, impressão cinza, sombra, quadro de 800 × 600, insuficiência de resolução em 640 × 480, remoção individual das quatro referências e ruído nos cantos do QR. O teste do worker também confere o transporte dos detalhes de erro.
+- **35 verificações da API e fluxo DOM aprovados**, com base temporária. A interface começa com uma referência ausente e bloqueia a associação; ao receber o cartão cinza completo, reconhece as respostas, permite escolher o estudante e salva. Depois corrige outro estudante usando o mesmo QR e a mesma sessão da câmera. Nenhum registro da base real é alterado.
+- A tela distingue folha alinhada com bolhas pequenas de falha de enquadramento, preserva o contorno em âmbar quando precisa repetir as marcações e aponta questões ambíguas. Scripts, worker e folha de estilos usam a versão `reader4`; a PWA usa cache v4. Após atualizar, feche o leitor e recarregue a página (Ctrl+F5 no computador).
+- Mediana desta execução local: aproximadamente **134 ms por captura consecutiva** com QR e OMR; OMR em cerca de 91 ms, numa imagem digital de 1000 × 1400. O detector mais cuidadoso e o ajuste dos contornos acrescentam processamento. São medidas locais, sem garantia de tempo em celulares.
+- Sintaxe dos módulos JavaScript e de `public/index.php` conferida. **Não houve captura com câmera física nesta correção.** Os testes usam os algoritmos de produção sobre pixels gerados/transformados; a validação no aparelho e na impressão da escola continua necessária. A correção não declara leitura universal de qualquer imagem/tinta.
+
 ## Leitor atualizado em 11/11/2026 — cores, QR e agilidade
 
 - **24 testes ópticos aprovados**: os sete cenários anteriores mais preenchimentos em 14 cores/tons (preto, azul, vermelho, verde, roxo, rosa, laranja, amarelo, ciano, marrom, cinza, rosa claro, amarelo claro e cinza claro), QR menor dos cartões antigos, leitura em resolução menor com folha deslocada, recorte da última posição e QR com baixo contraste. Em todos os testes de tinta, branco e múltiplas continuam separados.

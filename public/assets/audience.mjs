@@ -1,4 +1,4 @@
-import {escapeHtml as esc} from './layout.mjs?v=reader3';
+import {escapeHtml as esc} from './layout.mjs?v=reader4';
 
 export function buildAudience(classes,students,currentClass){
     const $=selector=>document.querySelector(selector);

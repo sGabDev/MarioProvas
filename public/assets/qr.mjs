@@ -4,7 +4,7 @@ function crop(image,box,maxSide){
     const w=Math.min(image.width-x,Math.ceil(box.width)),h=Math.min(image.height-y,Math.ceil(box.height));
     if(w<24||h<24)return null;
     const scale=Math.min(1,maxSide/Math.max(w,h)),width=Math.max(1,Math.round(w*scale)),height=Math.max(1,Math.round(h*scale));
-    if(x===0&&y===0&&width===image.width&&height===image.height)return {...image,originX:0,originY:0,scaleX:1,scaleY:1};
+    if(x===0&&y===0&&width===image.width&&height===image.height)return {data:image.data,width:image.width,height:image.height,originX:0,originY:0,scaleX:1,scaleY:1};
     const data=new Uint8ClampedArray(width*height*4),sx=w/width,sy=h/height;
     for(let j=0;j<height;j++){const sourceY=y+Math.min(h-1,Math.floor((j+.5)*sy));for(let i=0;i<width;i++){
         const p=(sourceY*image.width+x+Math.min(w-1,Math.floor((i+.5)*sx)))*4,k=(j*width+i)*4;

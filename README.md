@@ -6,7 +6,7 @@ Aplicação implementada do zero para organizar estudantes, criar simulados, imp
 
 - **PHP 8.2+ e PDO SQLite**: instalação simples em hospedagem PHP, transações e persistência em arquivo privado. SQLite atende ao uso escolar em uma única instância; não requer processo Node nem Composer na hospedagem.
 - **JavaScript nativo, Canvas e getUserMedia**: interface responsiva e processamento óptico no próprio dispositivo. jsQR 1.4.0 decodifica QR; qrcode-generator 1.4.4 gera QR. As bibliotecas e licenças estão em `public/assets/vendor/`, sem CDN em tempo de execução.
-- **OMR próprio**: localização das quatro referências, homografia, reamostragem da imagem, medição do preenchimento das bolhas, controle de contraste/desfoque e confirmação em duas capturas concordantes.
+- **OMR próprio**: localização das quatro referências por contraste local e geometria, homografia, reamostragem da imagem, ajuste fino dos contornos das bolhas, medição do preenchimento, controle de contraste/desfoque e confirmação em duas capturas concordantes.
 - **PWA** com manifesto, ícones e service worker. O cache contém somente recursos públicos e uma página offline. Dados escolares, imagens, cartões e APIs não são armazenados no cache da PWA. Não usa localStorage como banco.
 
 Extensões necessárias: `pdo_sqlite`, `mbstring`, `session`, `json`. O diretório privado `storage/` deve permitir escrita ao PHP. `upload_max_filesize` deve aceitar 8 MB e `post_max_size` pelo menos 10 MB. `memory_limit` recomendado: 128 MB ou mais. Ative HTTPS antes de usar a câmera fora de localhost.
@@ -104,6 +104,8 @@ Após atualizar os arquivos, use **Ctrl + F5** no computador. Recursos do leitor
 9. Compare o resultado individual: branco e múltiplas devem aparecer como anuladas; percentual = acertos / válidas. Nenhuma válida significa percentual **não calculável**, e não 0%.
 
 As imagens ficam na memória do dispositivo durante a leitura, não são enviadas nem armazenadas no servidor. São persistidas as medições de preenchimento por alternativa, o responsável pela leitura, a data e as respostas classificadas. Os parâmetros de qualidade não são prova criptográfica de captura: o professor autenticado continua responsável pela associação e conferência.
+
+**Atualização do leitor 4:** feche a tela de leitura e recarregue o site (Ctrl+F5 no computador) para carregar a correção do alinhamento. Cartões antigos continuam aceitos, sem reimpressão obrigatória. O contorno verde indica alinhamento aceito; âmbar indica que a folha foi alinhada, mas as marcações precisam de nova captura. Se aparecer “bolhas pequenas demais”, aproxime a folha preservando os quatro quadrados ou selecione uma câmera com resolução maior. Se houver preenchimento ambíguo, confira as questões indicadas. Uma captura rejeitada permanece sem resultado salvo.
 
 ## Resultados e relatórios
 

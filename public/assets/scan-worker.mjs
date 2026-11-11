@@ -1,6 +1,6 @@
 import './vendor/jsQR.js';
-import {decodeQr} from './qr.mjs';
-import {readCard} from './omr.mjs?v=reader3';
+import {decodeQr} from './qr.mjs?v=reader4';
+import {readCard} from './omr.mjs?v=reader4';
 let currentImage=null,currentQr=null;
 self.onmessage=event=>{
     const {id,type,image,options,count,alternatives}=event.data;
@@ -14,5 +14,5 @@ self.onmessage=event=>{
             value.durationMs=performance.now()-started;
         }else throw Error('Operação óptica inválida.');
         self.postMessage({id,value},value?.normalized?[value.normalized.buffer]:[]);
-    }catch(error){self.postMessage({id,error:{message:error.message,code:error.code||'reader'}});}
+    }catch(error){self.postMessage({id,error:{message:error.message,code:error.code||'reader',details:error.details}});}
 };

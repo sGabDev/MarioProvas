@@ -1,5 +1,5 @@
-import {escapeHtml as esc} from './layout.mjs?v=reader3';
-import {createScanEngine} from './scan-engine.mjs';
+import {escapeHtml as esc} from './layout.mjs?v=reader4';
+import {createScanEngine} from './scan-engine.mjs?v=reader4';
 let active=null;
 export function stopScanner(){
     if(!active)return;
@@ -29,6 +29,11 @@ export function openScanner(exam,ui){
         $('.camera-status-line').dataset.kind=kind;
     };
     const phase=n=>['#step-qr','#step-align','#step-marks'].forEach((selector,i)=>$(selector).dataset.state=i<n?'done':i===n?'current':'');
+    const showAlignment=(markers=[],width=frame.width,height=frame.height,state='ready')=>{
+        $('#scan-overlay').setAttribute('viewBox',`0 0 ${width||1000} ${height||1400}`);
+        $('#detected-card').setAttribute('points',markers.map(p=>`${p.x},${p.y}`).join(' '));
+        $('#detected-card').dataset.state=state;
+    };
     const placeholder=()=>{$('#review').innerHTML=`<div class="reader-placeholder"><span class="placeholder-icon">${icon('file')}</span><h3>Vamos ler o cartão</h3><p>O QR identifica a prova.<br>As bolhas preenchidas revelam as respostas.</p><ul><li>Mostre as quatro marcas da folha.</li><li>Preencha a bolha inteira com cor nítida.</li><li>Depois da leitura, escolha o aluno.</li></ul><div class="ink-colors" aria-label="Leitura de tinta preta, azul, vermelha, verde, roxa, rosa, laranja, amarela e outras cores"><i style="--ink:#20272b"></i><i style="--ink:#225ac2"></i><i style="--ink:#cf3d44"></i><i style="--ink:#267a50"></i><i style="--ink:#8146a4"></i><i style="--ink:#e85c9e"></i><i style="--ink:#e99930"></i><i style="--ink:#ecd34d"></i></div><small>Tintas muito claras ou reflexos podem exigir uma nova captura.</small></div>`;};
     placeholder();
     const updateGuide=()=>{
@@ -97,7 +102,7 @@ export function openScanner(exam,ui){
         if(active!==s||s.stopped||s.paused||s.processing)return;
         if(s.video.readyState<2||!s.video.videoWidth){schedule(80);return;}
         const cameraTime=s.video.currentTime;if(cameraTime>0&&cameraTime===s.cameraTime){schedule(35);return;}s.cameraTime=cameraTime;
-        const generation=s.generation,started=performance.now();s.processing=true;
+        const generation=s.generation,started=performance.now();s.processing=true;let readingCard=null;
         try{
             const scale=Math.min(1,1600/Math.max(s.video.videoWidth,s.video.videoHeight)),width=Math.round(s.video.videoWidth*scale),height=Math.round(s.video.videoHeight*scale);
             if(frame.width!==width)frame.width=width;if(frame.height!==height)frame.height=height;
@@ -107,7 +112,7 @@ export function openScanner(exam,ui){
             if(active!==s||s.stopped||generation!==s.generation)return;
             const qr=await s.engine.decode(image,{previous:s.previous,hint,thorough:s.capture++%2===0});
             if(active!==s||s.stopped||generation!==s.generation)return;
-            if(!qr){s.stable=null;s.previous=null;s.removeGuard=null;phase(0);$('#detected-card').setAttribute('points','');status('QR não identificado. Mostre a folha inteira, aproxime um pouco e evite reflexos.');return;}
+            if(!qr){s.stable=null;s.previous=null;s.removeGuard=null;phase(0);showAlignment();status('QR não identificado. Mostre a folha inteira, aproxime um pouco e evite reflexos.');return;}
             s.previous=qr;phase(1);
             if(!/^[a-f0-9]{32}$/.test(qr.data)){s.stable=null;status('QR desconhecido. Use o cartão gerado pelo MarioProvas.','error');return;}
             const rejected=s.identityErrors.get(qr.data);if(rejected&&Date.now()-rejected.at<5000){status(rejected.message,'error');return;}
@@ -115,9 +120,9 @@ export function openScanner(exam,ui){
             if(!card){try{card=await api('identify',undefined,{token:qr.data,exam_id:exam.id});s.identity.set(qr.data,card);}catch(e){s.identityErrors.set(qr.data,{at:Date.now(),message:e.message});throw e;}}
             if(active!==s||s.stopped||generation!==s.generation)return;
             if(card.processed){status('Cartão individual já processado. Apresente a próxima folha.','error');return;}
-            const reading=await s.engine.read(card.question_count,exam.alternatives);
+            readingCard=card;const reading=await s.engine.read(card.question_count,exam.alternatives);
             if(active!==s||s.stopped||generation!==s.generation)return;
-            phase(2);$('#scan-overlay').setAttribute('viewBox',`0 0 ${width} ${height}`);$('#detected-card').setAttribute('points',reading.markers.map(p=>`${p.x},${p.y}`).join(' '));
+            phase(2);showAlignment(reading.markers,width,height);
             const signature=JSON.stringify(reading.answers);
             if(s.removeGuard?.token===qr.data&&s.removeGuard.signature===signature){s.stable=null;status('Retire a folha já salva do enquadramento antes de apresentar o próximo aluno.','success');return;}
             s.removeGuard=null;
@@ -127,8 +132,10 @@ export function openScanner(exam,ui){
             status('Leitura pronta. Escolha o aluno para salvar.','success');renderReview(card,qr.data,reading);freshStudents();
         }catch(e){
             if(active!==s||s.stopped||generation!==s.generation)return;
-            s.stable=null;if(['ambiguous','print','shadow','blur','light'].includes(e.code))phase(2);
-            status(e.message+(e.code?' Nada foi salvo.':''),'error');
+            s.stable=null;if(['ambiguous','print','shadow','blur','light','resolution'].includes(e.code))phase(2);
+            showAlignment(e.details?.markers,e.details?.width,e.details?.height,'retry');
+            const questions=e.code==='ambiguous'&&readingCard&&e.details?.questions?.length?` Confira Q${e.details.questions.slice(0,6).map(n=>n+readingCard.start_number-1).join(', Q')}.`:'';
+            status(e.message+questions+(e.code?' Nada foi salvo.':''),'error');
         }finally{if(generation===s.generation){s.processing=false;schedule(Math.max(25,120-(performance.now()-started)));}}
     }
     function resume(clear=true){

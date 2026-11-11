@@ -160,8 +160,17 @@ optical = optical.replace(
     '<circle cx="116" cy="328" r="8.8" fill="black"/><circle cx="116" cy="396" r="8.8" fill="black"/><circle cx="180" cy="396" r="8.8" fill="black"/></svg>',
 );
 captureImage = await loadImage(new Resvg(optical, { fitTo: { mode: 'width', value: 1000 } }).render().asPng());
+const referenceImage=captureImage,registrationScene=createCanvas(1000,1400),registrationCtx=registrationScene.getContext('2d');
+registrationCtx.drawImage(referenceImage,0,0);registrationCtx.fillStyle='white';registrationCtx.fillRect(20,1310,70,80);
+captureImage=await loadImage(registrationScene.toBuffer('image/png'));
 $('#start-camera').click();
+await wait(()=>$('#camera-status').textContent.includes('marcas não formam'));
+assert.equal($('#save-scan'),null,'referência ausente não libera gravação');
+registrationCtx.drawImage(referenceImage,0,0);const grayScene=registrationCtx.getImageData(0,0,1000,1400);
+for(let i=0;i<grayScene.data.length;i+=4)for(let c=0;c<3;c++)grayScene.data[i+c]=135+grayScene.data[i+c]*115/255;
+registrationCtx.putImageData(grayScene,0,0);captureImage=await loadImage(registrationScene.toBuffer('image/png'));
 await wait(() => $('#save-scan'));
+assert.ok($('#detected-card').getAttribute('points').length>0,'impressão acinzentada recupera as quatro referências e as respostas');
 assert.equal(cameraCalls, 1);
 assert.equal($('#torch').hidden,false);assert.equal($('#refocus').hidden,false);
 $('#torch').click();await wait(()=>$('#torch').getAttribute('aria-pressed')==='true');

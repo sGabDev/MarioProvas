@@ -1,8 +1,10 @@
-import { LAYOUT, QR_LAYOUTS, bubblePosition } from './layout.mjs?v=reader3';
+import {findFiducials} from './fiducials.mjs?v=reader4';
+import { LAYOUT, QR_LAYOUTS, bubblePosition } from './layout.mjs?v=reader4';
 export class ReadError extends Error {
-    constructor(code, message) {
+    constructor(code, message, details = {}) {
         super(message);
         this.code = code;
+        this.details = details;
     }
 }
 export function homography(from, to) {
@@ -61,61 +63,6 @@ function warp(g,w,h,transform){
     }
     return output;
 }
-function referenceCandidates(g,w,h){
-    const ratio=Math.min(1,1000/Math.max(w,h));
-    if(ratio===1)return components(g,w,h);
-    const width=Math.round(w*ratio),height=Math.round(h*ratio),small=new Uint8Array(width*height),sx=w/width,sy=h/height;
-    for(let y=0;y<height;y++){const row=Math.min(h-1,Math.floor((y+.5)*sy))*w;for(let x=0;x<width;x++)small[y*width+x]=g[row+Math.min(w-1,Math.floor((x+.5)*sx))];}
-    return components(small,width,height).map(p=>({...p,x:(p.x+.5)*sx-.5,y:(p.y+.5)*sy-.5,width:p.width*sx,height:p.height*sy}));
-}
-function components(g, w, h) {
-    const seen = new Uint8Array(g.length),
-        stack = new Int32Array(g.length);
-    const candidates = [];
-    for (let i = 0; i < g.length; i++)
-        if (!seen[i] && g[i] < 100) {
-            let head = 0,
-                tail = 1;
-            stack[0] = i;
-            seen[i] = 1;
-            let minX = w,
-                minY = h,
-                maxX = 0,
-                maxY = 0,
-                sumX = 0,
-                sumY = 0,
-                count = 0;
-            while (head < tail) {
-                const p = stack[head++],
-                    x = p % w,
-                    y = (p / w) | 0;
-                minX = Math.min(minX, x);
-                maxX = Math.max(maxX, x);
-                minY = Math.min(minY, y);
-                maxY = Math.max(maxY, y);
-                sumX += x;
-                sumY += y;
-                count++;
-                if(x>0&&!seen[p-1]&&g[p-1]<100){seen[p-1]=1;stack[tail++]=p-1;}
-                if(x<w-1&&!seen[p+1]&&g[p+1]<100){seen[p+1]=1;stack[tail++]=p+1;}
-                if(y>0&&!seen[p-w]&&g[p-w]<100){seen[p-w]=1;stack[tail++]=p-w;}
-                if(y<h-1&&!seen[p+w]&&g[p+w]<100){seen[p+w]=1;stack[tail++]=p+w;}
-            }
-            const bw = maxX - minX + 1,
-                bh = maxY - minY + 1;
-            if (
-                bw >= 6 &&
-                bh >= 6 &&
-                bw < w * 0.12 &&
-                bh < h * 0.12 &&
-                bw / bh > 0.4 &&
-                bw / bh < 2.5 &&
-                count / (bw * bh) > 0.46
-            )
-                candidates.push({ x: sumX / count, y: sumY / count, width: bw, height: bh, fill: count / (bw * bh) });
-        }
-    return candidates;
-}
 function area(p) {
     return Math.abs(p.reduce((s, a, i) => s + a.x * p[(i + 1) % 4].y - a.y * p[(i + 1) % 4].x, 0)) / 2;
 }
@@ -132,7 +79,7 @@ function locateReferences(cand,w,h,qr,q){
         const p=predicted[i],origin=LAYOUT.markers[i],ap=affine(origin.x,origin.y),edge=affine(origin.x+20,origin.y),expected=Math.hypot(edge.x-ap.x,edge.y-ap.y),options=[];
         for(let k=0;k<cand.length;k++){
             const c=cand[k],distance=Math.min(Math.hypot(c.x-p.x,c.y-p.y),Math.hypot(c.x-ap.x,c.y-ap.y)),ratio=Math.sqrt(c.width*c.height)/expected;
-            if(distance>Math.max(28,Math.hypot(w,h)*.18)||ratio<.4||ratio>2.2)continue;
+            if(distance>Math.max(40,Math.hypot(w,h)*.45)||ratio<.25||ratio>3.5)continue;
             options.push({...c,k,cost:distance+Math.abs(Math.log(ratio))*35+(1-c.fill)*90});
         }
         options.sort((a,b)=>a.cost-b.cost);if(!options.length)return null;choices.push(options.slice(0,8));
@@ -141,7 +88,18 @@ function locateReferences(cand,w,h,qr,q){
     for(const a of choices[0])for(const b of choices[1])for(const c of choices[2])for(const d of choices[3]){
         if(a.k===b.k||a.k===c.k||a.k===d.k||b.k===c.k||b.k===d.k||c.k===d.k)continue;
         const option=[a,b,c,d];
+        const turns=option.map((p,i)=>{const b=option[(i+1)%4],c=option[(i+2)%4];return (b.x-p.x)*(c.y-b.y)-(b.y-p.y)*(c.x-b.x);});
+        if(!turns.every(v=>v>0)&&!turns.every(v=>v<0))continue;
+        if(area(option)<w*h*.05)continue;
         try{const h0=homography(LAYOUT.markers,option);let error=0;
+            // O centro de uma letra ou de uma bolha não é uma referência.
+            // Confira também o tamanho do quadrado previsto pela perspectiva.
+            const sizesMatch=option.every((candidate,i)=>{
+                const m=LAYOUT.markers[i],square=[[-10,-10],[10,-10],[10,10],[-10,10]].map(([dx,dy])=>project(h0,m.x+dx,m.y+dy));
+                const ratio=area(candidate.corners)/Math.max(1,area(square));
+                return ratio>=.35&&ratio<=1.8;
+            });
+            if(!sizesMatch)continue;
             for(let i=0;i<4;i++){const v=project(h0,qrModel[i].x,qrModel[i].y);error+=(v.x-detected[i].x)**2+(v.y-detected[i].y)**2;}
             if(error<bestError){bestError=error;found=option;}
         }catch{}
@@ -153,7 +111,7 @@ function locateReferences(cand,w,h,qr,q){
     return {found,transform,error:err/Math.max(1,qrScale)};
 }
 export function alignCard(image, qr) {
-    const {width:w,height:h}=image,g=grayscale(image),candidates=referenceCandidates(g,w,h);
+    const {width:w,height:h}=image,g=grayscale(image),candidates=findFiducials(g,w,h);
     let match=null;
     // Aceita tanto os cartões novos, com QR maior, quanto os já impressos.
     for(const q of QR_LAYOUTS){
@@ -161,7 +119,7 @@ export function alignCard(image, qr) {
         if(candidate&&(!match||candidate.error<match.error))match=candidate;
         if(match?.error<.015&&match.found.every(p=>p.fill>.8))break;
     }
-    if(!match)throw new ReadError('frame','QR identificado. Enquadre a folha inteira com as quatro marcas visíveis e mantenha o papel plano.');
+    if(!match)throw new ReadError('frame','QR identificado, mas as marcas não formam um cartão alinhado. Deixe os quatro quadrados pretos livres, com margem e sem dobrar a folha.');
     const {found,transform}=match;
     if(found.some(p=>p.x<6||p.y<6||p.x>w-6||p.y>h-6))throw new ReadError('frame','Cartão cortado. Deixe uma margem ao redor da folha.');
     const coverage=area(found)/(w*h);
@@ -214,15 +172,34 @@ for(let dy=-15;dy<=15;dy++)for(let dx=-15;dx<=15;dx++){
     if(r>=8.8&&r<=11.2)RING.push(offset);
     if(r>=13&&r<=15)PAPER.push(offset);
 }
+function contourOffset(normalized,bases,radius,origin=0){
+    // Ajusta a posição pelos contornos impressos de todas as alternativas,
+    // nunca pela alternativa mais preenchida. Compensa arredondamento das
+    // referências e reamostragem da câmera sem deslocar a leitura até a tinta.
+    let best=-Infinity,offset=0;
+    for(let dy=-radius;dy<=radius;dy++)for(let dx=-radius;dx<=radius;dx++){
+        let value=0;
+        for(const base of bases){let ring=0,paper=0;
+            for(let i=0;i<RING.length;i+=3)ring+=normalized[base+origin+dy*800+dx+RING[i]];
+            for(let i=0;i<PAPER.length;i+=5)paper+=normalized[base+origin+dy*800+dx+PAPER[i]];
+            value+=paper/Math.ceil(PAPER.length/5)-ring/Math.ceil(RING.length/3);
+        }
+        value-=bases.length*.45*(dx*dx+dy*dy);
+        if(value>best){best=value;offset=dy*800+dx;}
+    }
+    return origin+offset;
+}
 export function readBubbles(normalized, count, alternatives) {
     const scores = [],
         answers = [];
-    let ambiguous = 0;
+    const uncertain = [];
     for (let i = 0; i < count; i++) {
         const row = [];
+        const bases=Array.from({length:alternatives},(_,a)=>{const p=bubblePosition(i,a);return p.y*800+p.x;});
+        const adjustment=contourOffset(normalized,bases,3);
         for (let a = 0; a < alternatives; a++) {
             const p = bubblePosition(i, a);
-            const base=p.y*800+p.x;
+            const base=p.y*800+p.x+contourOffset(normalized,[p.y*800+p.x],1,adjustment);
             let bg=0;for(const offset of PAPER)bg+=normalized[base+offset];
             const paper=bg/PAPER.length,threshold = Math.min(175, paper - 65),weakThreshold=paper-28;
             if (threshold < 65)
@@ -242,16 +219,17 @@ export function readBubbles(normalized, count, alternatives) {
             if(weakScore>=.68)score=Math.max(score,weakScore);
             else if(weakScore>.40&&score<=.20)score=.30;
             row.push(Number(score.toFixed(4)));
-            if (score > 0.2 && score < 0.44) ambiguous++;
+            if (score > 0.2 && score < 0.44) uncertain.push({question:i+1,alternative:String.fromCharCode(65+a),score});
         }
         scores.push(row);
         const m = row.flatMap((s, a) => (s >= 0.44 ? [String.fromCharCode(65 + a)] : []));
         answers.push(m);
     }
-    if (ambiguous)
+    if (uncertain.length)
         throw new ReadError(
             'ambiguous',
-            `${ambiguous} marcação(ões) ambígua(s). Reforce o preenchimento e leia novamente; nada foi salvo.`,
+            `${uncertain.length} marcação(ões) ambígua(s). Aproxime a folha, confira o foco e reforce o preenchimento se necessário.`,
+            {uncertain},
         );
     return {
         scores,
@@ -262,5 +240,15 @@ export function readBubbles(normalized, count, alternatives) {
 }
 export function readCard(image, qr, count, alternatives) {
     const aligned = alignCard(image, qr);
-    return { ...aligned, ...readBubbles(aligned.normalized, count, alternatives) };
+    try{return { ...aligned, ...readBubbles(aligned.normalized, count, alternatives) };}
+    catch(error){
+        error.details={...error.details,markers:aligned.markers,width:image.width,height:image.height};
+        if(error.code==='ambiguous'){
+            const questions=[...new Set(error.details.uncertain.map(p=>p.question))];
+            error.details.questions=questions;
+            const minimumScale=Math.min(...aligned.markers.map((p,i)=>{const next=aligned.markers[(i+1)%4];return Math.hypot(next.x-p.x,next.y-p.y)/(i%2?1040:720);}));
+            if(minimumScale<.45){error.code='resolution';error.message='Folha alinhada, mas as bolhas estão pequenas demais nesta captura. Aproxime a folha sem cortar as marcas ou selecione uma câmera com resolução maior.';}
+        }
+        throw error;
+    }
 }
