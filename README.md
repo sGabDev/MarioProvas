@@ -18,23 +18,33 @@ No PowerShell, dentro deste projeto:
 ```powershell
 C:\xampp\php\php.exe scripts/check.php
 C:\xampp\php\php.exe install.php
-C:\xampp\php\php.exe -S localhost:8080 -t public
+C:\xampp\php\php.exe -S localhost:8080 -t public scripts/dev-router.php
 ```
 
-O instalador solicita escola, nome, e-mail e senha do primeiro administrador. A senha deve ter de 12 a 200 caracteres. A entrada no instalador CLI é visível no terminal; para entrada mascarada, use a instalação web abaixo. A instalação só pode acontecer uma vez por banco. Abra **http://localhost:8080**. Com Apache/XAMPP, também pode abrir a pasta `public/` deste projeto, conforme o seu VirtualHost.
+O instalador solicita escola, nome, e-mail e senha do primeiro administrador. A senha deve ter de 12 a 200 caracteres. A entrada no instalador CLI é visível no terminal; para entrada mascarada, use a instalação web abaixo. A instalação só pode acontecer uma vez por banco. Abra **http://localhost:8080**. No Apache/XAMPP configurado para este projeto, abra **http://localhost/**.
 
-Se o DocumentRoot do Apache/XAMPP apontar para a raiz deste projeto, **http://localhost/** redireciona para **http://localhost/public/**. A entrada `index.php` usa uma URL relativa, compatível com Windows e instalações em subpastas. Não inicie o servidor embutido do PHP na raiz do projeto: ele não interpreta `.htaccess`. Use sempre `-t public`.
+Se o DocumentRoot do Apache/XAMPP apontar para a raiz deste projeto, os arquivos públicos são servidos por reescrita interna: **http://localhost/** e **http://localhost/print?exam=1&sets=2**, sem `/public` nem `.html`. Também é possível apontar o document root diretamente para `public/`. Os dois modos aceitam instalação em subpasta e exigem `mod_rewrite`/`AllowOverride All`, ou equivalente no LiteSpeed. Não inicie o servidor embutido do PHP na raiz do projeto: ele não interpreta `.htaccess`. Use `-t public scripts/dev-router.php` como no comando acima, para ter as mesmas URLs limpas durante o desenvolvimento.
 
 ## Instalar na Hostinger
 
 Use hospedagem **PHP**, não um plano restrito ao construtor visual. Confira a disponibilidade do PDO SQLite no seu plano e versão de PHP. No hPanel, as extensões e opções são gerenciadas na configuração do PHP; veja a [documentação oficial da Hostinger](https://www.hostinger.com/br/support/4667515-como-gerenciar-extensoes-e-opcoes-do-php-no-hpanel-hostinger/).
 
 1. Envie o conteúdo de `dist/MarioProvas-hostinger.zip` e extraia preservando a estrutura. O pacote não inclui CSV, banco, credenciais nem dados reais.
-2. **Preferível:** configure o document root do domínio/subdomínio para a pasta `public/`; mantenha `app/`, `storage/` e `config.php` fora desse document root. Se seu plano fixa a pasta `public_html`, use a estrutura do pacote dentro de `public_html` e acesse `https://seu-dominio/public/`. O `.htaccess` da raiz bloqueia arquivos e pastas privados. Não remova esses bloqueios.
+2. **Preferível:** configure o document root do domínio/subdomínio para a pasta `public/`; mantenha `app/`, `storage/` e `config.php` fora desse document root. Se seu plano fixa a pasta `public_html`, extraia **a estrutura completa do pacote dentro dela**, incluindo o `.htaccess` da raiz e o de `public/`, e abra `https://seu-dominio/`. O arquivo da raiz encaminha internamente a interface, impressão e recursos autorizados; a pasta física `public/` permanece no servidor, mas não aparece na URL. Os bloqueios de arquivos/pastas privados devem ser preservados. Não mova somente o conteúdo de `public/`: isso quebra os caminhos PHP de configuração e banco.
 3. Ative PHP 8.2+ com as extensões indicadas, ajuste o upload e dê permissão de escrita ao PHP somente em `storage/`. Não use permissão 777. Se houver SSH, execute `php scripts/check.php` e `php install.php` na raiz da aplicação.
 4. **Sem SSH:** copie `config.example.php` para `config.php`, ao lado de `app/`. Defina `setup_key` com uma chave aleatória de pelo menos 32 caracteres. Abra o site e complete “Prepare sua escola” usando essa chave. Não existe senha padrão nem cadastro público. Depois de instalar, esvazie `setup_key` no arquivo e guarde o `config.php` privado. O banco impede nova instalação mesmo que a chave continue configurada.
 5. Ative o certificado SSL e o redirecionamento HTTP → HTTPS no painel da hospedagem. Acesse o endereço HTTPS definitivo antes de instalar a PWA. A câmera depende de contexto seguro ([documentação de getUserMedia](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia)). Um IP da rede local servido por HTTP não é equivalente a localhost.
 6. Desative cache de página/CDN para `api.php`, páginas autenticadas e impressão. O projeto envia `Cache-Control: no-store, private`. Preserve cookies de sessão e cabeçalhos de segurança. Para Nginx ou servidores que ignoram `.htaccess`, exponha **somente `public/`** e implemente os cabeçalhos equivalentes.
+
+### Atualizar a hospedagem: gerador QR e URLs limpas
+
+O pacote atual usa um módulo ES local do qrcode-generator 1.4.4, em `public/assets/vendor/qrcode.mjs`. A impressão importa a função diretamente, sem depender de `window.qrcode`, da ordem de scripts `defer` ou de CDN. Envie esse arquivo novo junto com os demais arquivos atualizados; copiar apenas `print.html` não aplica a correção.
+
+Para atualizar uma instalação existente, faça backup e extraia `dist/MarioProvas-hostinger.zip` na **mesma raiz em que já estão `app/`, `public/` e `config.php`**, substituindo os arquivos de código e os dois `.htaccess`. O pacote não contém `config.php`, CSV ou banco; preserve esses dados e não reinstale o sistema. No gerenciador de arquivos da Hostinger, habilite a exibição de arquivos ocultos para conferir os `.htaccess`. Não é necessário renomear nem remover a pasta física `public/`.
+
+Depois do envio, a impressão abre em **`https://seu-dominio/print?exam=1&sets=2`**. Links anteriores com `/public/print.html` ou `/print.html` redirecionam para a rota limpa, conservando os parâmetros. `api.php`, scripts, imagens, manifesto e PWA continuam funcionando pela raiz. Consultas e gravações permanecem autenticadas. As regras usam `THE_REQUEST` para não redirecionar a reescrita interna e evitar ciclos; veja a [documentação de mod_rewrite do Apache](https://httpd.apache.org/docs/2.4/mod/mod_rewrite.html#rewritecond).
+
+Limpe o cache da hospedagem/CDN, se estiver ativo, e recarregue com **Ctrl+F5**; em PWA, feche e reabra. A versão dos recursos é `routes7`. Se `/print` retornar 404, confira se os dois `.htaccess` foram enviados e se a reescrita de URL está habilitada no servidor. A mudança local só passa a valer no domínio depois que os arquivos forem enviados à hospedagem.
 7. Teste sem autenticação: os endereços do CSV, `storage/`, `app/` e `config.php` devem retornar 403/404; a API não deve fornecer dados. Faça backup privado antes de colocar dados em uso.
 
 O caminho do banco pode ser alterado em `config.php`. O padrão é `storage/marioprovas.sqlite`. O banco usa WAL; a pasta inteira precisa ser gravável. Variáveis de ambiente `MARIOPROVAS_DB` e `MARIOPROVAS_SETUP_KEY`, quando definidas pelo operador, têm prioridade sobre `config.php`; isso também permite executar os testes em bancos isolados com uma configuração local existente.
@@ -115,7 +125,7 @@ Após atualizar os arquivos, use **Ctrl + F5** no computador. Recursos do leitor
 
 As imagens ficam na memória do dispositivo durante a leitura, não são enviadas nem armazenadas no servidor. São persistidas as medições de preenchimento por alternativa, o responsável pela leitura, a data e as respostas classificadas. Os parâmetros de qualidade não são prova criptográfica de captura: o professor autenticado continua responsável pela associação e conferência.
 
-**Atualização clean6:** feche a tela de impressão/leitura e recarregue o site (Ctrl+F5 no computador) para carregar o cartão sem cabeçalho. Baixe novamente o PNG para obter a apresentação limpa. Cartões anteriores continuam aceitos, sem reimpressão obrigatória. O contorno verde indica alinhamento aceito; âmbar indica que o cartão foi alinhado, mas as marcações precisam de nova captura. Se aparecer “bolhas pequenas demais”, aproxime o cartão preservando os quatro quadrados ou selecione uma câmera com resolução maior. Se houver preenchimento ambíguo, confira as questões indicadas. Uma captura rejeitada permanece sem resultado salvo.
+**Atualização routes7:** feche a tela de impressão/leitura e recarregue o site (Ctrl+F5 no computador) para carregar o gerador QR e os links atualizados. Baixe novamente o PNG para obter a apresentação limpa. Cartões anteriores continuam aceitos, sem reimpressão obrigatória. O contorno verde indica alinhamento aceito; âmbar indica que o cartão foi alinhado, mas as marcações precisam de nova captura. Se aparecer “bolhas pequenas demais”, aproxime o cartão preservando os quatro quadrados ou selecione uma câmera com resolução maior. Se houver preenchimento ambíguo, confira as questões indicadas. Uma captura rejeitada permanece sem resultado salvo.
 
 ## Resultados e relatórios
 

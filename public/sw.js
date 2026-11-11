@@ -1,5 +1,5 @@
-const CACHE = 'marioprovas-shell-v6';
-const FILES = ['./offline.html', './assets/app.css', './assets/scanner.css', './assets/icon-192.png', './assets/icon-512.png'];
+const CACHE = 'marioprovas-shell-v7';
+const FILES = ['./offline', './assets/app.css', './assets/scanner.css', './assets/icon-192.png', './assets/icon-512.png'];
 self.addEventListener('install', (event) => event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(FILES))));
 self.addEventListener('activate', (event) =>
     event.waitUntil(
@@ -17,5 +17,5 @@ self.addEventListener('fetch', (event) => {
         return;
     }
     if (event.request.mode === 'navigate')
-        event.respondWith(fetch(event.request).catch(() => caches.match('./offline.html')));
+        event.respondWith(fetch(event.request).catch(() => caches.match('./offline')));
 });

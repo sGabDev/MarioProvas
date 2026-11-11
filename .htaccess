@@ -1,4 +1,4 @@
-Options -Indexes
+Options -Indexes -MultiViews
 DirectoryIndex index.php
 <FilesMatch "(?i)\.(csv|sqlite|sqlite3|db|ini|log|json|md|zip)$">
   Require all denied
@@ -6,4 +6,28 @@ DirectoryIndex index.php
 RewriteEngine On
 RewriteRule (^|/)\. - [F,L]
 RewriteRule ^(?:app|storage|tests|scripts|docs|dist|node_modules)(?:/|$) - [F,L,NC]
-RewriteRule ^(?:config(?:\.example)?\.php|install\.php)$ - [F,L,NC]
+RewriteRule ^(?:config[^/]*\.php|install\.php)$ - [F,L,NC]
+
+# Endereços antigos continuam funcionando, mas não expõem a pasta public.
+# THE_REQUEST distingue o acesso externo da reescrita interna abaixo.
+RewriteCond %{THE_REQUEST} "\s/+[^\s?]*public(?:[/?\s])" [NC]
+RewriteCond %{REQUEST_URI} ^(.*/)?public(?:/(.*))?$ [NC]
+RewriteRule ^public(?:/.*)?$ %1%2 [R=307,L]
+
+RewriteCond %{THE_REQUEST} "\s/+[^\s?]+\.html(?:[?\s])" [NC]
+RewriteCond %{REQUEST_URI} ^(.+)\.html$ [NC]
+RewriteRule ^(?:print|offline)\.html$ %1 [R=302,L]
+
+RewriteCond %{THE_REQUEST} "\s/+[^\s?]*index\.php(?:[?\s])" [NC]
+RewriteCond %{REQUEST_URI} ^(.*/)index\.php$ [NC]
+RewriteRule ^index\.php$ %1 [R=302,L]
+
+RewriteCond %{REQUEST_URI} ^(.*/(?:print|offline))/$ [NC]
+RewriteRule ^(?:print|offline)/$ %1 [R=302,L]
+
+# Somente estes recursos públicos são expostos na raiz do domínio/subpasta.
+RewriteRule ^$ public/index.php [END]
+RewriteRule ^print$ public/print.html [END]
+RewriteRule ^offline$ public/offline.html [END]
+RewriteRule ^(api\.php|sw\.js|manifest\.webmanifest)$ public/$1 [END]
+RewriteRule ^assets/(.+)$ public/assets/$1 [END]

@@ -14,5 +14,10 @@
   "jsQR.LICENSE": {
     "source": "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/LICENSE",
     "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08"
+  },
+  "qrcode.mjs": {
+    "source": "qrcode.js (qrcode-generator 1.4.4, MIT)",
+    "modifications": "UMD export wrapper replaced by export default qrcode; original generator and license preserved.",
+    "sha256": "fcfb230065bd5445114dd713ae469d0db60b140fb797d7ff95a8ce1b6292996a"
   }
 }

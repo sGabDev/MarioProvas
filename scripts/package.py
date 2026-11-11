@@ -7,7 +7,7 @@ out=root/'dist';out.mkdir(exist_ok=True)
 files=[]
 for folder in ['app','public','docs']:
     files.extend(p for p in (root/folder).rglob('*') if p.is_file())
-for relative in ['.htaccess','index.php','config.example.php','install.php','README.md','storage/.htaccess','storage/.gitkeep','scripts/check.php','scripts/backup.php']:
+for relative in ['.htaccess','index.php','config.example.php','install.php','README.md','storage/.htaccess','storage/.gitkeep','scripts/check.php','scripts/backup.php','scripts/dev-router.php']:
     files.append(root/relative)
 target=out/'MarioProvas-hostinger.zip'
 with zipfile.ZipFile(target,'w',zipfile.ZIP_DEFLATED) as archive:

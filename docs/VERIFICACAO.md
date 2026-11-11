@@ -1,5 +1,13 @@
 # Registro de verificação — 10/11/2026
 
+## QR e URLs limpas em 11/11/2026 — versão routes7
+
+- Corrigida a dependência global da impressão: `print.mjs` importa a função de `vendor/qrcode.mjs`, adaptação ES module local do gerador 1.4.4 com algoritmo/licença preservados. O script clássico `defer` foi retirado da página. A validação de disponibilidade evita expor `qrFactory is not a function` em chamadas indevidas. A origem e hash do módulo estão em `vendor/sources.json`.
+- Novos links usam `/print?exam=...&sets=...`. Apache/LiteSpeed servem os arquivos de `public/` por reescrita interna, sem mostrar essa pasta ou `.html` no navegador; links antigos redirecionam preservando os parâmetros. O modo document root em `public/` também funciona. API, módulos, ícones, manifesto, PWA e página offline usam a raiz; as restrições de configuração, banco e arquivos privados permanecem. Redirecionamentos de recursos com `/public` usam 307 para preservar método/corpo de POST.
+- **35 verificações da API e fluxo DOM aprovados** com router de desenvolvimento e SQLite temporário. **Chrome real aprovado** acessando um link antigo `/public/print.html`, chegando a `/print`, gerando e baixando PNG com QR/60 questões sem `window.qrcode`: o teste define essa propriedade como `undefined`, não gravável, antes de carregar a impressão. Compacto/A4 e tela móvel continuam verificados.
+- **30 verificações do Apache real aprovadas** em `tests/routes.py`: URL na raiz, subpasta, document root público, recursos, redirects/query strings, preservação de POST/corpo e bloqueios privados. As fixtures são temporárias, sem dados escolares, e o banco real não é consultado nem alterado. Sintaxe Apache conferida com `httpd -t`.
+- Conferidos por HTTP os arquivos públicos da instalação informada, sem autenticar nem acessar dados escolares. **Não foi feito envio/deploy na Hostinger**; a aplicação no domínio precisa receber o ZIP atualizado, incluindo os dois `.htaccess` e o novo módulo QR. Testes locais não equivalem a validar a configuração de reescrita do servidor remoto depois do envio.
+
 ## Cartão sem cabeçalho em 11/11/2026 — versão clean6
 
 - Removidos do SVG/PNG e da impressão, tanto no compacto quanto no A4: nome do site, nome do simulado, turma/data, resumo de quantidade, identificação de bloco/conjunto, campo de estudante e instruções/rodapé. Permanecem somente números das questões, letras e bolhas das alternativas, QR e quatro referências de alinhamento.

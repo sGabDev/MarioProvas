@@ -1,7 +1,7 @@
-import {cardManagement} from './cards-view.mjs?v=clean6';
+import {cardManagement} from './cards-view.mjs?v=routes7';
 import {buildAudience} from './audience.mjs';
-import { escapeHtml as esc } from './layout.mjs?v=clean6';
-import { openScanner, stopScanner } from './scanner.mjs?v=clean6';
+import { escapeHtml as esc } from './layout.mjs?v=routes7';
+import { openScanner, stopScanner } from './scanner.mjs?v=routes7';
 const $ = (s, root = document) => root.querySelector(s),
     $$ = (s, root = document) => [...root.querySelectorAll(s)];
 let state = {},
@@ -539,7 +539,7 @@ async function examView(id, startScan = false) {
         ev.preventDefault();
         await busy($('button', ev.currentTarget), async () => {
             const r = await api('generate_cards', { exam_id: id, reusable: true });
-            const url = `print.html?exam=${id}&sets=${r.booklets.join(',')}`;
+            const url = `print?exam=${id}&sets=${r.booklets.join(',')}`;
             toast('Modelo reutilizável pronto. Use as mesmas páginas para os participantes.');
             await examView(id);
             const link = document.createElement('a');

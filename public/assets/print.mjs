@@ -1,5 +1,6 @@
-import {cardSvg,compactLayout,LAYOUT} from './layout.mjs?v=clean6';
-import {cardPng} from './png-export.mjs?v=clean6';
+import {cardSvg,compactLayout,LAYOUT} from './layout.mjs?v=routes7';
+import {cardPng} from './png-export.mjs?v=routes7';
+import qrFactory from './vendor/qrcode.mjs?v=routes7';
 const $=selector=>document.querySelector(selector);
 $('#print').onclick=()=>window.print();
 const params=new URLSearchParams(location.search);
@@ -11,7 +12,7 @@ function render(){
     $('#cards').replaceChildren();
     for(const card of cards){
         const layout=compact?compactLayout(Number(card.question_count),Number(exam.alternatives)):LAYOUT;
-        const svg=cardSvg({...card,layoutVersion:compact?3:2},exam,questions,window.qrcode);
+        const svg=cardSvg({...card,layoutVersion:compact?3:2},exam,questions,qrFactory);
         const item=document.createElement('article');item.className='print-card';
         const size=`${(layout.widthMm/10).toLocaleString('pt-BR',{maximumFractionDigits:2})} × ${(layout.heightMm/10).toLocaleString('pt-BR',{maximumFractionDigits:2})} cm`;
         item.innerHTML=`<div class="card-tools"><div><h2>Bloco ${card.page} · questões ${card.start_number}–${card.start_number+card.question_count-1}</h2><p>${size} · ${card.question_count} questões · ${exam.alternatives} alternativas</p></div><button type="button" class="download-png">Baixar PNG</button></div><section class="sheet" style="--card-width:${layout.widthMm}mm;--card-height:${layout.heightMm}mm">${svg}</section><p class="card-size">Na capa: insira com largura de <strong>${(layout.widthMm/10).toLocaleString('pt-BR',{maximumFractionDigits:2})} cm</strong>, mantendo a proporção e todo o fundo branco.</p>`;

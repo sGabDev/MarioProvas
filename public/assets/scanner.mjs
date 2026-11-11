@@ -1,5 +1,5 @@
-import {escapeHtml as esc} from './layout.mjs?v=clean6';
-import {createScanEngine} from './scan-engine.mjs?v=clean6';
+import {escapeHtml as esc} from './layout.mjs?v=routes7';
+import {createScanEngine} from './scan-engine.mjs?v=routes7';
 let active=null;
 export function stopScanner(){
     if(!active)return;

@@ -19,6 +19,7 @@ export function bubblePosition(index,alternative,layout=LAYOUT){
 }
 export function escapeHtml(value){return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 export function cardSvg(card,exam,questions,qrFactory){
+  if(typeof qrFactory!=='function')throw Error('Gerador de QR indisponível. Atualize a página e confira se todos os arquivos foram enviados.');
   if(card.layoutVersion===3)return compactCardSvg(card,exam,questions,qrFactory);
   const qr=qrFactory(0,'M');qr.addData(card.token);qr.make();const n=qr.getModuleCount(),geometry=QR_LAYOUTS[card.layoutVersion===1?1:0];const mod=geometry.size/n;
   let svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1120" role="img" aria-label="Cartão-resposta" style="font-family:Arial,sans-serif"><rect width="800" height="1120" fill="white"/><g fill="black">`;

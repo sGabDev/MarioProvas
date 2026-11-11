@@ -1,4 +1,4 @@
-import {escapeHtml as esc} from './layout.mjs?v=clean6';
+import {escapeHtml as esc} from './layout.mjs?v=routes7';
 
 export function buildAudience(classes,students,currentClass){
     const $=selector=>document.querySelector(selector);

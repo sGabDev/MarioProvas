@@ -6,7 +6,7 @@ env=os.environ.copy();env['MARIOPROVAS_DB']=str(tmp/'preview.sqlite');env['MARIO
 php=os.environ.get('PHP_BIN',r'C:\xampp\php\php.exe' if os.name=='nt' else 'php')
 code="require 'app/bootstrap.php'; query('INSERT INTO schools(name) VALUES(?)',['Ambiente de verificação']);query('INSERT INTO users(school_id,name,email,password,role) VALUES(?,?,?,?,?)',[1,'Professor','qa@example.invalid',password_hash('MarioProvasTeste2026!',PASSWORD_DEFAULT),'admin']);"
 subprocess.run([php,'-r',code],cwd=root,env=env,check=True)
-server=subprocess.Popen([php,'-S','127.0.0.1:8085','-t',str(root/'public')],cwd=root,env=env)
+server=subprocess.Popen([php,'-S','127.0.0.1:8085','-t',str(root/'public'),str(root/'scripts/dev-router.php')],cwd=root,env=env)
 try:server.wait()
 except KeyboardInterrupt:server.terminate();server.wait(timeout=10)
 finally:

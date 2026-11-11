@@ -23,7 +23,7 @@ with socket.socket() as sock:
 BASE=f'http://127.0.0.1:{port}/'
 env=os.environ.copy();env.update(MARIOPROVAS_DB=str(temp/'test.sqlite'),MARIOPROVAS_SETUP_KEY=secrets.token_hex(24))
 log=open(temp/'server.log','wb')
-server=subprocess.Popen([PHP,'-S',f'127.0.0.1:{port}','-t',str(ROOT/'public')],cwd=ROOT,env=env,stdout=log,stderr=log)
+server=subprocess.Popen([PHP,'-S',f'127.0.0.1:{port}','-t',str(ROOT/'public'),str(ROOT/'scripts/dev-router.php')],cwd=ROOT,env=env,stdout=log,stderr=log)
 passed=[]
 def check(condition,label):
     if not condition: raise AssertionError(label)

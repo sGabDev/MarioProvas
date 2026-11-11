@@ -141,7 +141,7 @@ const eid = Number(location.hash.split('/')[1]);
 assert.ok(eid > 0);
 $('#generate').dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
 await wait(() => [...document.querySelectorAll('a')].some((a) => a.textContent === 'Abrir impressão do modelo reutilizável'));
-assert.ok(document.querySelector('a[href*="print.html"]'));
+assert.ok(document.querySelector('a[href*="print?exam="]'));
 $('#scan').click();
 await wait(() => $('#start-camera'));
 assert.ok($('#camera-status').textContent.includes('Aguardando'));

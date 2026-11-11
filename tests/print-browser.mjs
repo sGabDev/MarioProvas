@@ -31,7 +31,11 @@ try{
     assert.equal(login,true,'sessão de teste no navegador');
     const query=new URLSearchParams({exam:process.env.MARIOPROVAS_TEST_EXAM,sets:process.env.MARIOPROVAS_TEST_SET});
     await send('Emulation.setDeviceMetricsOverride',{width:1280,height:1050,deviceScaleFactor:1,mobile:false});
-    await send('Page.navigate',{url:base+'print.html?'+query});await wait(()=>evaluate('document.querySelectorAll(".download-png").length > 0'));
+    // Nenhum gerador global: a página de impressão precisa resolver seu módulo.
+    await send('Page.addScriptToEvaluateOnNewDocument',{source:'Object.defineProperty(window,"qrcode",{value:undefined,writable:false,configurable:false});'});
+    await send('Page.navigate',{url:base+'public/print.html?'+query});await wait(()=>evaluate('document.querySelectorAll(".download-png").length > 0'));
+    assert.equal(await evaluate('location.pathname'),'/print');
+    assert.equal(await evaluate('typeof window.qrcode'),'undefined');
     assert.equal(await evaluate('document.querySelector("#format").value'),'compact');
     assert.equal(await evaluate('document.querySelector(".sheet svg").getAttribute("viewBox")'),'0 0 800 590');
     fs.mkdirSync('tests/artifacts',{recursive:true});
