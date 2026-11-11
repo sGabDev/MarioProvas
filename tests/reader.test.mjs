@@ -27,6 +27,9 @@ test('worker real decodifica QR e bolhas sem executar o OMR na interface',async(
         badCtx.fillStyle='black';badCtx.beginPath();badCtx.arc(145,410,5,0,Math.PI*2);badCtx.fill();
         assert.ok(await engine.decode(badCtx.getImageData(0,0,1000,1400)));
         await assert.rejects(engine.read(60,5),e=>e.code==='ambiguous'&&e.details.markers.length===4&&e.details.questions.includes(1));
+        const compact=await loadImage('tests/artifacts/compacto-60.png'),surface=createCanvas(800,590),compactCtx=surface.getContext('2d');compactCtx.drawImage(compact,0,0,800,590);
+        assert.ok(await engine.decode(compactCtx.getImageData(0,0,800,590)));
+        const compactResult=await engine.read(60,5);assert.equal(compactResult.layout.format,'compact');assert.equal(compactResult.layout.height,590);assert.equal(compactResult.blank,60);assert.equal(compactResult.normalized.length,800*590);
     }finally{engine.dispose();delete globalThis.Worker;}
 });
 test('fallback funciona em navegador sem suporte a worker',async()=>{

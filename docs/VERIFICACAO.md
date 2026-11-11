@@ -1,5 +1,15 @@
 # Registro de verificação — 10/11/2026
 
+## Cartão compacto em 11/11/2026 — versão compact5
+
+- Implementada grade dinâmica com até quatro colunas e 15 linhas, 2–5 alternativas e até 60 questões por bloco. Bolhas de 4 mm no tamanho recomendado; QR de 20,8 mm com margem de quatro módulos. Para cinco alternativas: 10 questões em 8,64 × 6,2 cm; 30 em 8,64 × 11,8 cm; 60 em 16 × 11,8 cm. Blocos adicionais continuam no mesmo modelo reutilizável e conservam os identificadores.
+- Download PNG local em 300/600 dpi, rasterização diretamente na resolução final, fundo branco e metadados `pHYs` de impressão. Página responsiva com tamanho físico, PNG por bloco e seleção compacto/A4. Não exige novo banco, novos QR ou reinstalação.
+- OMR generalizado para dimensões, margens e posições de bolhas variáveis; seleção automática entre compacto e A4, confirmação por contornos, prévia com dimensões corretas e processamento em worker. O guia e as instruções permitem enquadrar só a região do cartão na capa.
+- **47 testes ópticos/do motor aprovados**: 35 anteriores e 12 do compacto. Cobrem geometria de todas as quantidades de 1–60 e 2–5 alternativas, leitura rasterizada de diferentes grades, branco/múltiplas, uma capa com texto externo e perspectiva, rotação/impressão cinza e exportação PNG real em 300/600 dpi com leitura do QR e das bolhas. O teste do worker também recebe e devolve a grade compacta.
+- **35 verificações da API e fluxo DOM aprovados** em SQLite temporário. O DOM salva o primeiro aluno a partir de um cartão A4 acinzentado e o segundo com o mesmo QR no formato compacto, sem reiniciar a câmera. A prévia usa as dimensões do desenho reconhecido.
+- **Chrome real em modo headless aprovado**, com perfil temporário e servidor PHP do banco de testes: login, abertura do compacto de 60 questões, download PNG por clique, resolução/pHYs, reconhecimento de QR e de 60 respostas em branco a partir desse download, troca para A4, capturas em 1280 × 1050 e emulação de 390 × 844 sem rolagem horizontal. Capturas desktop, celular e PNG exportado foram inspecionados visualmente; não incluem estudantes ou turmas reais. Teste em `tests/print-browser.mjs`, chamado pela integração quando Chrome/Edge está disponível; `MARIOPROVAS_CHROME` permite indicar o executável.
+- **Limite:** não foi feita impressão ou captura com câmera física. Emulação móvel não homologa aparelhos reais. Dpi alto não garante leitura quando o usuário reduz a imagem abaixo do tamanho recomendado, recorta referências ou imprime com desfoque/reflexos. Os testes não criam resultados na base real.
+
 ## Correção de alinhamento em 11/11/2026 — leitor 4
 
 - Reproduzido o aviso relatado: QR decodificado, folha inteira e quatro referências presentes, mas nenhuma referência aceita quando a impressão/exposição elevava o preto para cinza 135/255. O detector anterior exigia pixels abaixo de 100/255. O mesmo cenário agora reconhece as 60 questões, incluindo branco e múltiplas.

@@ -92,6 +92,8 @@ try:
     check([a['count'] for a in e['areas']]==[17,53,1] and len(e['questions'])==71,'simulado de três áreas com quantidades distintas e gabarito persistido')
     c.call('generate_cards',{'exam_id':eid,'count':2,'reusable':False});cards=c.call('cards',params={'exam_id':eid})['cards'];first=cards[0];second=cards[1]
     check(len(cards)==4 and first['question_count']==60 and second['question_count']==11 and all(len(x['token'])==32 for x in cards),'cartões multipágina com tokens aleatórios exclusivos')
+    print_env=ui_env.copy();print_env.update(MARIOPROVAS_TEST_EXAM=str(eid),MARIOPROVAS_TEST_SET=str(first['booklet_id']))
+    subprocess.run(['node','tests/print-browser.mjs'],cwd=ROOT,env=print_env,check=True,timeout=90)
     other=c.call('create_exam',{**create,'name':'OUTRA AVALIAÇÃO DE TESTE','areas':[{'name':'Disciplina única','count':1,'answers':['B']}]})['id']
     check(len(c.call('exam',params={'id':other})['areas'])==1,'prova de uma única disciplina')
     c.call('identify',params={'exam_id':eid,'token':'f'*32},expected=404)

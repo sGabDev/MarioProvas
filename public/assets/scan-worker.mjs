@@ -1,6 +1,6 @@
 import './vendor/jsQR.js';
-import {decodeQr} from './qr.mjs?v=reader4';
-import {readCard} from './omr.mjs?v=reader4';
+import {decodeQr} from './qr.mjs?v=compact5';
+import {readCard} from './omr.mjs?v=compact5';
 let currentImage=null,currentQr=null;
 self.onmessage=event=>{
     const {id,type,image,options,count,alternatives}=event.data;

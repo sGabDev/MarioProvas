@@ -3,7 +3,7 @@ import { JSDOM } from 'jsdom';
 import { createCanvas, loadImage } from '@napi-rs/canvas';
 import { Resvg } from '@resvg/resvg-js';
 import { createRequire } from 'node:module';
-import { cardSvg } from '../public/assets/layout.mjs';
+import { cardSvg,compactLayout,bubblePosition } from '../public/assets/layout.mjs';
 const require = createRequire(import.meta.url);
 const base = process.env.MARIOPROVAS_TEST_URL;
 if (!base) throw Error('Execute por tests/integration.py.');
@@ -62,8 +62,9 @@ dom.window.HTMLCanvasElement.prototype.getContext = function () {
     });
 };
 Object.defineProperty(dom.window, 'isSecureContext', { value: true });
-for (const [key, value] of Object.entries({ videoWidth: 1000, videoHeight: 1400, readyState: 4 }))
-    Object.defineProperty(dom.window.HTMLVideoElement.prototype, key, { get: () => value });
+Object.defineProperty(dom.window.HTMLVideoElement.prototype,'videoWidth',{get:()=>captureImage?.width||1000});
+Object.defineProperty(dom.window.HTMLVideoElement.prototype,'videoHeight',{get:()=>captureImage?.height||1400});
+Object.defineProperty(dom.window.HTMLVideoElement.prototype,'readyState',{get:()=>4});
 dom.window.HTMLVideoElement.prototype.play = async function () {};
 Object.defineProperty(navigator, 'mediaDevices', {
     value: {
@@ -194,7 +195,11 @@ assert.equal($('#saved-count').textContent,'1');
 await wait(()=>$('#camera-status').textContent.includes('Retire a folha já salva'));
 const captured=captureImage,blank=createCanvas(1000,1400);blank.getContext('2d').fillStyle='white';blank.getContext('2d').fillRect(0,0,1000,1400);captureImage=await loadImage(blank.toBuffer('image/png'));
 await wait(()=>$('#camera-status').textContent.includes('QR não identificado'));
-captureImage=captured;await wait(()=>$('#save-scan'));
+const compact=compactLayout(card.question_count,cardData.exam.alternatives);
+let compactSvg=cardSvg({...card,layoutVersion:3},{...cardData.exam,name:'VERIFICAÇÃO COMPACTA DA INTERFACE'},cardData.questions,qrFactory),compactMarks='';
+for(const [i,a] of [[0,0],[2,0],[2,2]]){const p=bubblePosition(i,a,compact);compactMarks+=`<circle cx="${p.x}" cy="${p.y}" r="8.8" fill="black"/>`;}
+compactSvg=compactSvg.replace('</svg>',compactMarks+'</svg>');captureImage=await loadImage(new Resvg(compactSvg,{fitTo:{mode:'width',value:1000}}).render().asPng());await wait(()=>$('#save-scan'));
+assert.equal($('#aligned').width,compact.width);assert.equal($('#aligned').height,compact.height);
 assert.equal($('#scan-student option[value="'+firstStudent+'"]'),null,'aluno já corrigido não reaparece como opção');
 $('#scan-student').value=$('#scan-student option[value]:not([value=""])').value;
 $('#assign').dispatchEvent(new dom.window.Event('submit',{bubbles:true,cancelable:true}));await wait(()=>$('#next-card'));

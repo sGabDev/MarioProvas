@@ -1,1 +1,12 @@
-<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="same-origin"><title>Imprimir cartões · MarioProvas</title><link rel="stylesheet" href="assets/print.css"><script src="assets/vendor/qrcode.js" defer></script><script type="module" src="assets/print.mjs?v=reader4"></script></head><body><header><a href="./">← MarioProvas</a><p>Use papel A4 branco, escala 100%, sem cabeçalhos nem rodapés. Não use “ajustar à página”. Guarde as folhas de cada conjunto juntas.</p><button id="print" type="button">Imprimir / salvar PDF</button><span id="status" role="status"></span></header><main id="cards"></main></body></html>
+<!doctype html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="same-origin"><title>Cartões para a capa · MarioProvas</title><link rel="stylesheet" href="assets/print.css?v=compact5"><script src="assets/vendor/qrcode.js" defer></script><script type="module" src="assets/print.mjs?v=compact5"></script></head>
+<body>
+<header>
+  <a href="./" class="back">← MarioProvas</a><p class="eyebrow">Pronto para a capa da prova</p><h1>Seu cartão, no espaço certo.</h1><p id="exam-title"></p>
+  <p>Baixe o PNG e insira na capa no tamanho indicado. O cartão se organiza em colunas e ocupa só o espaço das questões. Cada bloco comporta até 60 questões; provas maiores têm mais blocos.</p>
+  <div class="print-toolbar"><label>Formato<select id="format"><option value="compact">Compacto para a capa</option><option value="a4">Folha A4 tradicional</option></select></label><label>Qualidade do PNG<select id="resolution"><option value="300">300 dpi · alta qualidade</option><option value="600">600 dpi · máxima qualidade</option></select></label><button id="print" type="button" class="secondary">Imprimir / salvar PDF</button></div>
+  <p class="print-note">Mantenha a proporção, a margem branca e as quatro marcas. No compacto, as bolhas têm 4 mm no tamanho indicado. Não reduza abaixo dele: mais pixels no PNG não compensam uma impressão pequena demais. Para ler, enquadre apenas o cartão da capa.</p>
+  <p id="status" role="status" aria-live="polite">Preparando os cartões…</p>
+</header><main id="cards" aria-label="Cartões disponíveis"></main>
+</body></html>

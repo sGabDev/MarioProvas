@@ -72,20 +72,30 @@ A turma de participação é registrada ao incluir o estudante no simulado. Uma 
 2. Mantenha uma disciplina para uma prova simples ou adicione várias áreas. Estão sugeridas Linguagens, Ciências Humanas, Ciências da Natureza e Matemática. Nomes personalizados são aceitos. As quantidades podem ser diferentes.
 3. Selecione os participantes importados. Clique em **Montar gabarito**, preencha todas as questões e crie o simulado. O gabarito é fixo após a criação para não invalidar cartões ou resultados existentes.
 4. Clique em **Gerar modelo reutilizável** e abra a impressão. Imprima uma matriz e tire as cópias necessárias: **o mesmo QR pode ser usado para vários estudantes**. Reabrir a impressão mantém o mesmo modelo e os mesmos QR codes. As respostas são reconhecidas separadamente em cada folha preenchida e salvas para o aluno selecionado. Não há lançamento automático da mesma resposta para toda a turma.
-5. Imprima em A4 branco, escala 100%, sem cabeçalhos/rodapés. Cada folha contém até 60 questões; provas maiores usam até quatro folhas do mesmo modelo, com QR próprio por página. O QR tem somente um token aleatório de 128 bits, relacionado ao modelo e ao simulado no servidor. Cada estudante precisa preencher sua própria cópia (ou uma folha reutilizável devidamente limpa entre os usos).
+5. Em **PNG / imprimir**, o formato padrão é **Compacto para a capa**. Baixe o PNG em 300 ou 600 dpi e insira na capa no tamanho indicado, mantendo a proporção. Cada bloco contém até 60 questões; provas maiores usam até quatro blocos do mesmo modelo, com QR próprio por bloco. A opção **Folha A4 tradicional** permanece disponível; para impressão direta, use papel branco, escala 100% e sem cabeçalhos/rodapés. O QR tem somente um token aleatório de 128 bits, relacionado ao modelo e ao simulado no servidor. Cada estudante precisa preencher sua própria cópia.
 6. O estudante escreve o nome no campo impresso e preenche as bolhas com caneta de cor nítida. O nome manuscrito não é reconhecido por OCR: serve à conferência do professor ao selecionar o cadastro depois da leitura.
 
 Limites atuais: 240 questões e 30 áreas. Há um modelo reutilizável por simulado. Um simulado pode incluir uma ou várias turmas, participantes selecionados ou todos os estudantes de uma série. Não há preenchimento automático de gabarito nem resultados inventados.
 
 Cartões individuais gerados na versão anterior continuam válidos e mantêm seu funcionamento original de um aluno por conjunto. Para compartilhar o QR em um simulado antigo, abra-o e gere o novo modelo reutilizável. A atualização do banco é automática e preserva cadastros, gabaritos, cartões e resultados existentes; não é necessário reinstalar o sistema.
 
+## Cartão compacto e PNG para a capa
+
+Abra o simulado → **PNG / imprimir** → **Compacto para a capa** → **Baixar PNG** em cada bloco. O arquivo tem fundo branco, QR, quatro referências e todas as bolhas daquele bloco. O download é gerado no dispositivo, com metadados PNG de tamanho físico (`pHYs`) para 300/600 dpi. Não inclui nome de estudante. No Word/LibreOffice/Canva, insira a imagem original e confira a largura indicada; mantenha a proporção, não recorte as margens e evite recompressão ou capturas de tela.
+
+Com cinco alternativas, os tamanhos são aproximadamente: 10 questões **8,64 × 6,2 cm**, 30 questões **8,64 × 11,8 cm**, 60 questões **16 × 11,8 cm**. A distribuição em até quatro colunas e a altura são calculadas pela quantidade efetiva de questões e alternativas; blocos finais não reservam espaço para 60 questões quando têm menos. O compacto de 60 questões ocupa cerca de **63% menos área** que o cartão anterior de 19 × 26,6 cm.
+
+As bolhas conservam **4 mm de diâmetro** no tamanho recomendado, e o QR tem 20,8 mm mais sua margem branca. O compacto não é uma miniatura proporcional do A4: a grade foi reorganizada, o cabeçalho reduzido e as letras internas clareadas. Não diminua abaixo das dimensões indicadas: aumentar dpi melhora a imagem, mas não recupera contraste/foco perdido quando a impressão física fica pequena demais. Para avaliações acima de 60 questões, baixe todos os blocos e coloque-os na capa/páginas da prova mantendo suas dimensões e margens; cada bloco precisa ser lido para concluir o resultado.
+
+O leitor reconhece automaticamente o compacto e os dois desenhos A4 anteriores pelas referências e contornos; os tokens e os registros existentes não são trocados. Não há migração de banco nesta atualização. Na câmera, enquadre **o cartão inteiro**, com as quatro referências, sem precisar mostrar toda a capa. Preserve espaço branco ao redor para que textos e desenhos da capa não encostem nas marcas ou no QR. Cartões em formatos diferentes podem ser usados para estudantes diferentes no mesmo simulado.
+
 ## Leitura rápida, enquadramento e cores
 
 A leitura não exige caneta preta. O detector considera o contraste dos canais de cor e aceita preenchimento com cores nítidas, incluindo azul, vermelho, verde, roxo, rosa, laranja e amarelo. Foram verificados 14 tons em imagens digitais, com preservação de branco e marcações múltiplas. Preencha **a bolha inteira**. Não é possível garantir leitura de tinta invisível, quase branca, com brilho metálico ou sem contraste com o papel. Se aparecer marcação ambígua, reforce o preenchimento e recapture; as respostas não são digitadas.
 
-O leitor mostra três etapas: **Identificar QR → Alinhar folha → Ler respostas**. Se o QR já foi identificado e a segunda etapa não avança, mostre a folha inteira com as quatro marcas; aproximar apenas o QR não permite ler as respostas. O contorno verde acompanha a folha reconhecida. Luz, foco e zoom aparecem quando a câmera informa suporte; câmera e aproximação também podem ser escolhidas em **Ajustes da câmera**.
+O leitor mostra três etapas: **Identificar QR → Alinhar cartão → Ler respostas**. Se o QR já foi identificado e a segunda etapa não avança, mostre o cartão inteiro com as quatro marcas; aproximar apenas o QR não permite ler as respostas. O contorno verde acompanha o cartão reconhecido. Luz, foco e zoom aparecem quando a câmera informa suporte; câmera e aproximação também podem ser escolhidas em **Ajustes da câmera**.
 
-As novas impressões têm QR maior e margem branca própria. Basta reabrir a impressão do modelo para obter o novo desenho, conservando o mesmo identificador. Os cartões já impressos com o QR menor continuam aceitos.
+O QR mantém margem branca própria em todos os formatos. Basta reabrir a impressão do modelo para baixar o compacto, conservando o mesmo identificador. Os cartões já impressos em A4 continuam aceitos.
 
 A busca do QR usa recortes e refinamento dos cantos. O processamento acontece em worker quando disponível, mantendo a interface livre; existe fallback local para navegadores sem worker. Duas capturas precisam concordar. A espera fixa de 550 ms foi removida. Depois de **Salvar e continuar**, retire a folha anterior: a câmera já procura o próximo cartão. Uma folha idêntica precisa sair do enquadramento antes de ser apresentada novamente para outro aluno.
 
@@ -105,7 +115,7 @@ Após atualizar os arquivos, use **Ctrl + F5** no computador. Recursos do leitor
 
 As imagens ficam na memória do dispositivo durante a leitura, não são enviadas nem armazenadas no servidor. São persistidas as medições de preenchimento por alternativa, o responsável pela leitura, a data e as respostas classificadas. Os parâmetros de qualidade não são prova criptográfica de captura: o professor autenticado continua responsável pela associação e conferência.
 
-**Atualização do leitor 4:** feche a tela de leitura e recarregue o site (Ctrl+F5 no computador) para carregar a correção do alinhamento. Cartões antigos continuam aceitos, sem reimpressão obrigatória. O contorno verde indica alinhamento aceito; âmbar indica que a folha foi alinhada, mas as marcações precisam de nova captura. Se aparecer “bolhas pequenas demais”, aproxime a folha preservando os quatro quadrados ou selecione uma câmera com resolução maior. Se houver preenchimento ambíguo, confira as questões indicadas. Uma captura rejeitada permanece sem resultado salvo.
+**Atualização compact5:** feche a tela de leitura e recarregue o site (Ctrl+F5 no computador) para carregar o suporte ao compacto. Cartões antigos continuam aceitos, sem reimpressão obrigatória. O contorno verde indica alinhamento aceito; âmbar indica que o cartão foi alinhado, mas as marcações precisam de nova captura. Se aparecer “bolhas pequenas demais”, aproxime o cartão preservando os quatro quadrados ou selecione uma câmera com resolução maior. Se houver preenchimento ambíguo, confira as questões indicadas. Uma captura rejeitada permanece sem resultado salvo.
 
 ## Resultados e relatórios
 
@@ -132,6 +142,8 @@ C:\xampp\php\php.exe scripts/check.php
 ```
 
 Node e Python são necessários **somente para desenvolvimento/testes**, não para servir a aplicação. Em Linux use `npm` e ajuste `PHP_BIN` se necessário. As dependências de teste são fixadas no lockfile. Se o CSV original não estiver mais na pasta, a integração usa os cadastros reais da base local apenas como fonte de leitura e monta o CSV de teste em memória. Todas as importações e correções de teste acontecem em SQLite temporário. O teste de migração também usa uma cópia privada da base existente, sem atualizar a origem. Veja [docs/VERIFICACAO.md](docs/VERIFICACAO.md) para a evidência e os limites de validação.
+
+A integração também verifica a exportação em Chrome/Edge headless quando o executável está disponível; use `MARIOPROVAS_CHROME` para indicar outro caminho. Esse teste usa perfil temporário, login e banco de testes, baixa o PNG de verdade e produz capturas desktop/celular em `tests/artifacts/`. Não aciona a câmera física e não é necessário Chrome no servidor de produção.
 
 O reconhecimento óptico é implementado e testado sobre imagens rasterizadas com QR real e bolhas reais nos pixels, incluindo perspectiva. **Isso não equivale a homologação com câmera física, impressão, luz e dispositivos da escola.** Faça o roteiro de papel acima antes do uso em uma aplicação de prova. Tinta muito clara, rasuras, folhas curvadas, impressões distorcidas e iluminação irregular podem exigir nova leitura. Não há promessa de leitura de cartões externos ou reconhecimento de X, tiques ou letras manuscritas nas bolhas.
 

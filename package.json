@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "description": "Ferramentas locais de verificação óptica; a aplicação em produção usa somente PHP.",
   "scripts": {
-    "test:omr": "node --test tests/omr.test.mjs && node --test tests/registration.test.mjs && node --test tests/reader.test.mjs",
+    "test:omr": "node --test tests/omr.test.mjs && node --test tests/registration.test.mjs && node --test tests/compact.test.mjs && node --test tests/reader.test.mjs",
     "icons": "node scripts/icons.mjs"
   },
   "devDependencies": {

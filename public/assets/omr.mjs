@@ -1,5 +1,5 @@
-import {findFiducials} from './fiducials.mjs?v=reader4';
-import { LAYOUT, QR_LAYOUTS, bubblePosition } from './layout.mjs?v=reader4';
+import {findFiducials} from './fiducials.mjs?v=compact5';
+import { LAYOUT, QR_LAYOUTS, compactLayout, bubblePosition } from './layout.mjs?v=compact5';
 export class ReadError extends Error {
     constructor(code, message, details = {}) {
         super(message);
@@ -50,11 +50,11 @@ export function inkChannel(image) {
     }
     return ink;
 }
-function warp(g,w,h,transform){
-    const output=new Uint8Array(LAYOUT.width*LAYOUT.height),[a,b,c,d,e,f,j,k,l]=transform;
-    for(let y=0,index=0;y<LAYOUT.height;y++){
+function warp(g,w,h,transform,layout){
+    const output=new Uint8Array(layout.width*layout.height),[a,b,c,d,e,f,j,k,l]=transform;
+    for(let y=0,index=0;y<layout.height;y++){
         let nx=b*y+c,ny=e*y+f,z=k*y+l;
-        for(let x=0;x<LAYOUT.width;x++,index++,nx+=a,ny+=d,z+=j){
+        for(let x=0;x<layout.width;x++,index++,nx+=a,ny+=d,z+=j){
             const px=nx/z,py=ny/z;
             if(px<0||py<0||px>=w-1||py>=h-1){output[index]=255;continue;}
             const ix=px|0,iy=py|0,dx=px-ix,dy=py-iy,p=iy*w+ix;
@@ -69,14 +69,14 @@ function area(p) {
 function qrPoints(loc) {
     return [loc.topLeftCorner, loc.topRightCorner, loc.bottomRightCorner, loc.bottomLeftCorner];
 }
-function locateReferences(cand,w,h,qr,q){
+function locateReferences(cand,w,h,qr,q,layout){
     const qrModel=[{x:q.x,y:q.y},{x:q.x+q.size,y:q.y},{x:q.x+q.size,y:q.y+q.size},{x:q.x,y:q.y+q.size}],detected=qrPoints(qr.location);
-    const estimate=homography(qrModel,detected),predicted=LAYOUT.markers.map(p=>project(estimate,p.x,p.y)),choices=[];
+    const estimate=homography(qrModel,detected),predicted=layout.markers.map(p=>project(estimate,p.x,p.y)),choices=[];
     // A aproximação afim não amplifica o ruído de um canto do QR ao longo
     // de toda a folha. A perspectiva real é calculada depois pelas marcas.
     const affine=(x,y)=>({x:detected[0].x+(detected[1].x-detected[0].x)*(x-q.x)/q.size+(detected[3].x-detected[0].x)*(y-q.y)/q.size,y:detected[0].y+(detected[1].y-detected[0].y)*(x-q.x)/q.size+(detected[3].y-detected[0].y)*(y-q.y)/q.size});
     for(let i=0;i<4;i++){
-        const p=predicted[i],origin=LAYOUT.markers[i],ap=affine(origin.x,origin.y),edge=affine(origin.x+20,origin.y),expected=Math.hypot(edge.x-ap.x,edge.y-ap.y),options=[];
+        const p=predicted[i],origin=layout.markers[i],ap=affine(origin.x,origin.y),edge=affine(origin.x+20,origin.y),expected=Math.hypot(edge.x-ap.x,edge.y-ap.y),options=[];
         for(let k=0;k<cand.length;k++){
             const c=cand[k],distance=Math.min(Math.hypot(c.x-p.x,c.y-p.y),Math.hypot(c.x-ap.x,c.y-ap.y)),ratio=Math.sqrt(c.width*c.height)/expected;
             if(distance>Math.max(40,Math.hypot(w,h)*.45)||ratio<.25||ratio>3.5)continue;
@@ -91,11 +91,11 @@ function locateReferences(cand,w,h,qr,q){
         const turns=option.map((p,i)=>{const b=option[(i+1)%4],c=option[(i+2)%4];return (b.x-p.x)*(c.y-b.y)-(b.y-p.y)*(c.x-b.x);});
         if(!turns.every(v=>v>0)&&!turns.every(v=>v<0))continue;
         if(area(option)<w*h*.05)continue;
-        try{const h0=homography(LAYOUT.markers,option);let error=0;
+        try{const h0=homography(layout.markers,option);let error=0;
             // O centro de uma letra ou de uma bolha não é uma referência.
             // Confira também o tamanho do quadrado previsto pela perspectiva.
             const sizesMatch=option.every((candidate,i)=>{
-                const m=LAYOUT.markers[i],square=[[-10,-10],[10,-10],[10,10],[-10,10]].map(([dx,dy])=>project(h0,m.x+dx,m.y+dy));
+                const m=layout.markers[i],square=[[-10,-10],[10,-10],[10,10],[-10,10]].map(([dx,dy])=>project(h0,m.x+dx,m.y+dy));
                 const ratio=area(candidate.corners)/Math.max(1,area(square));
                 return ratio>=.35&&ratio<=1.8;
             });
@@ -105,26 +105,28 @@ function locateReferences(cand,w,h,qr,q){
         }catch{}
     }
     if(!found)return null;
-    const transform=homography(LAYOUT.markers,found),projected=qrModel.map(p=>project(transform,p.x,p.y));
+    const transform=homography(layout.markers,found),projected=qrModel.map(p=>project(transform,p.x,p.y));
     const qrScale=Math.hypot(projected[1].x-projected[0].x,projected[1].y-projected[0].y),err=Math.max(...projected.map((p,i)=>Math.hypot(p.x-detected[i].x,p.y-detected[i].y)));
     if(err>Math.max(7,qrScale*.08))return null;
     return {found,transform,error:err/Math.max(1,qrScale)};
 }
-export function alignCard(image, qr) {
+export function alignCard(image, qr, layout=LAYOUT) {
     const {width:w,height:h}=image,g=grayscale(image),candidates=findFiducials(g,w,h);
     let match=null;
     // Aceita tanto os cartões novos, com QR maior, quanto os já impressos.
-    for(const q of QR_LAYOUTS){
-        const candidate=locateReferences(candidates,w,h,qr,q);
+    for(const q of (layout.format==='compact'?[layout.qr]:QR_LAYOUTS)){
+        const candidate=locateReferences(candidates,w,h,qr,q,layout);
         if(candidate&&(!match||candidate.error<match.error))match=candidate;
         if(match?.error<.015&&match.found.every(p=>p.fill>.8))break;
     }
     if(!match)throw new ReadError('frame','QR identificado, mas as marcas não formam um cartão alinhado. Deixe os quatro quadrados pretos livres, com margem e sem dobrar a folha.');
     const {found,transform}=match;
-    if(found.some(p=>p.x<6||p.y<6||p.x>w-6||p.y>h-6))throw new ReadError('frame','Cartão cortado. Deixe uma margem ao redor da folha.');
+    if(found.some(p=>p.x<6||p.y<6||p.x>w-6||p.y>h-6))throw new ReadError('frame','Cartão cortado. Deixe uma margem ao redor do cartão.');
     const coverage=area(found)/(w*h);
-    if(coverage<.12)throw new ReadError('distance','QR identificado. Aproxime a folha inteira para ler as respostas.');
-    const normalized = warp(inkChannel(image), w, h, transform);
+    // Mesmo mínimo do servidor: não apresentar como pronta uma captura
+    // distante que seria rejeitada somente na hora de salvar.
+    if(coverage<.12)throw new ReadError('distance','QR identificado. Aproxime o cartão inteiro, com as quatro marcas, para ler as respostas.');
+    const normalized = warp(inkChannel(image), w, h, transform, layout);
     let dark = 0,
         light = 0,
         dn = 0,
@@ -132,12 +134,12 @@ export function alignCard(image, qr) {
         lap = 0,
         lap2 = 0,
         lapN = 0;
-    for (const m of LAYOUT.markers) {
+    for (const m of layout.markers) {
         for (let dy = -16; dy <= 16; dy++)
             for (let dx = -16; dx <= 16; dx++) {
                 const x = m.x + dx,
                     y = m.y + dy,
-                    v = normalized[y * 800 + x];
+                    v = normalized[y * layout.width + x];
                 if (Math.abs(dx) < 6 && Math.abs(dy) < 6) {
                     dark += v;
                     dn++;
@@ -147,10 +149,10 @@ export function alignCard(image, qr) {
                 }
                 if (Math.abs(dx) < 13 && Math.abs(dy) < 13) {
                     const l =
-                        normalized[y * 800 + x - 1] +
-                        normalized[y * 800 + x + 1] +
-                        normalized[(y - 1) * 800 + x] +
-                        normalized[(y + 1) * 800 + x] -
+                        normalized[y * layout.width + x - 1] +
+                        normalized[y * layout.width + x + 1] +
+                        normalized[(y - 1) * layout.width + x] +
+                        normalized[(y + 1) * layout.width + x] -
                         4 * v;
                     lap += l;
                     lap2 += l * l;
@@ -163,43 +165,50 @@ export function alignCard(image, qr) {
     if (contrast < 90) throw new ReadError('light', 'Contraste insuficiente. Melhore a iluminação e evite reflexos.');
     if (sharpness < 55)
         throw new ReadError('blur', 'Imagem desfocada. Limpe a lente, estabilize a câmera e tente novamente.');
-    return { normalized, markers: found, quality: { markerCount: 4, contrast, sharpness, coverage } };
+    return { normalized, layout, markers: found, quality: { markerCount: 4, contrast, sharpness, coverage } };
 }
-const CENTER=[],RING=[],PAPER=[];
-for(let dy=-15;dy<=15;dy++)for(let dx=-15;dx<=15;dx++){
-    const r=Math.hypot(dx,dy),offset=dy*800+dx;
-    if(r<=7)CENTER.push(offset);
-    if(r>=8.8&&r<=11.2)RING.push(offset);
-    if(r>=13&&r<=15)PAPER.push(offset);
+const samplingCache=new Map();
+function sampling(width){
+    if(samplingCache.has(width))return samplingCache.get(width);
+    const CENTER=[],RING=[],PAPER=[];
+    for(let dy=-15;dy<=15;dy++)for(let dx=-15;dx<=15;dx++){
+        const r=Math.hypot(dx,dy),offset=dy*width+dx;
+        if(r<=7)CENTER.push(offset);
+        if(r>=8.8&&r<=11.2)RING.push(offset);
+        if(r>=13&&r<=15)PAPER.push(offset);
+    }
+    const result={CENTER,RING,PAPER,width};samplingCache.set(width,result);return result;
 }
-function contourOffset(normalized,bases,radius,origin=0){
+function contourOffset(normalized,bases,radius,samples,origin=0){
     // Ajusta a posição pelos contornos impressos de todas as alternativas,
     // nunca pela alternativa mais preenchida. Compensa arredondamento das
     // referências e reamostragem da câmera sem deslocar a leitura até a tinta.
+    const {RING,PAPER,width}=samples;
     let best=-Infinity,offset=0;
     for(let dy=-radius;dy<=radius;dy++)for(let dx=-radius;dx<=radius;dx++){
         let value=0;
         for(const base of bases){let ring=0,paper=0;
-            for(let i=0;i<RING.length;i+=3)ring+=normalized[base+origin+dy*800+dx+RING[i]];
-            for(let i=0;i<PAPER.length;i+=5)paper+=normalized[base+origin+dy*800+dx+PAPER[i]];
+            for(let i=0;i<RING.length;i+=3)ring+=normalized[base+origin+dy*width+dx+RING[i]];
+            for(let i=0;i<PAPER.length;i+=5)paper+=normalized[base+origin+dy*width+dx+PAPER[i]];
             value+=paper/Math.ceil(PAPER.length/5)-ring/Math.ceil(RING.length/3);
         }
         value-=bases.length*.45*(dx*dx+dy*dy);
-        if(value>best){best=value;offset=dy*800+dx;}
+        if(value>best){best=value;offset=dy*width+dx;}
     }
     return origin+offset;
 }
-export function readBubbles(normalized, count, alternatives) {
+export function readBubbles(normalized, count, alternatives, layout=LAYOUT) {
+    const samples=sampling(layout.width),{CENTER,RING,PAPER}=samples;
     const scores = [],
         answers = [];
     const uncertain = [];
     for (let i = 0; i < count; i++) {
         const row = [];
-        const bases=Array.from({length:alternatives},(_,a)=>{const p=bubblePosition(i,a);return p.y*800+p.x;});
-        const adjustment=contourOffset(normalized,bases,3);
+        const bases=Array.from({length:alternatives},(_,a)=>{const p=bubblePosition(i,a,layout);return p.y*layout.width+p.x;});
+        const adjustment=contourOffset(normalized,bases,3,samples);
         for (let a = 0; a < alternatives; a++) {
-            const p = bubblePosition(i, a);
-            const base=p.y*800+p.x+contourOffset(normalized,[p.y*800+p.x],1,adjustment);
+            const p = bubblePosition(i, a,layout);
+            const base=p.y*layout.width+p.x+contourOffset(normalized,[p.y*layout.width+p.x],1,samples,adjustment);
             let bg=0;for(const offset of PAPER)bg+=normalized[base+offset];
             const paper=bg/PAPER.length,threshold = Math.min(175, paper - 65),weakThreshold=paper-28;
             if (threshold < 65)
@@ -239,16 +248,27 @@ export function readBubbles(normalized, count, alternatives) {
     };
 }
 export function readCard(image, qr, count, alternatives) {
-    const aligned = alignCard(image, qr);
-    try{return { ...aligned, ...readBubbles(aligned.normalized, count, alternatives) };}
-    catch(error){
-        error.details={...error.details,markers:aligned.markers,width:image.width,height:image.height};
-        if(error.code==='ambiguous'){
-            const questions=[...new Set(error.details.uncertain.map(p=>p.question))];
-            error.details.questions=questions;
-            const minimumScale=Math.min(...aligned.markers.map((p,i)=>{const next=aligned.markers[(i+1)%4];return Math.hypot(next.x-p.x,next.y-p.y)/(i%2?1040:720);}));
-            if(minimumScale<.45){error.code='resolution';error.message='Folha alinhada, mas as bolhas estão pequenas demais nesta captura. Aproxime a folha sem cortar as marcas ou selecione uma câmera com resolução maior.';}
-        }
-        throw error;
+    let failure=null;
+    const priority=error=>['ambiguous','resolution','print','shadow'].includes(error.code)?3:['blur','light','distance'].includes(error.code)?2:1;
+    // O QR permanece um identificador opaco. As quatro marcas e os contornos
+    // distinguem o compacto e os formatos antigos, sem alterar os cadastros.
+    for(const layout of [compactLayout(Number(count),Number(alternatives)),LAYOUT]){
+        try{
+            const aligned=alignCard(image,qr,layout);
+            try{return {...aligned,...readBubbles(aligned.normalized,count,alternatives,layout)};}
+            catch(error){
+                error.details={...error.details,markers:aligned.markers,width:image.width,height:image.height,layout};
+                if(error.code==='ambiguous'){
+                    error.details.questions=[...new Set(error.details.uncertain.map(p=>p.question))];
+                    const minimumScale=Math.min(...aligned.markers.map((p,i)=>{
+                        const next=aligned.markers[(i+1)%4],m=layout.markers[i],mn=layout.markers[(i+1)%4];
+                        return Math.hypot(next.x-p.x,next.y-p.y)/Math.hypot(mn.x-m.x,mn.y-m.y);
+                    }));
+                    if(minimumScale<.45){error.code='resolution';error.message='Cartão alinhado, mas as bolhas estão pequenas demais nesta captura. Aproxime apenas o cartão, sem cortar as quatro marcas, ou selecione uma câmera com resolução maior.';}
+                }
+                throw error;
+            }
+        }catch(error){if(!failure||priority(error)>priority(failure))failure=error;}
     }
+    throw failure;
 }
