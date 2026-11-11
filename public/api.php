@@ -9,7 +9,7 @@ header('Cache-Control: no-store, private');header('X-Content-Type-Options: nosni
 start_session();
 try {
     $action=$_GET['action']??'state';$method=$_SERVER['REQUEST_METHOD'];
-    $write=['login','logout','setup','upload','preview','import','student_update','create_exam','generate_cards','scan','team_create'];
+    $write=['login','logout','setup','upload','preview','import','student_update','class_update','create_exam','generate_cards','scan','team_create'];
     if(in_array($action,$write,true)){
         if($method!=='POST')fail('Método não permitido.',405);
         if(!hash_equals($_SESSION['csrf'],$_SERVER['HTTP_X_CSRF_TOKEN']??''))fail('Sessão expirada. Atualize a página.',403);
@@ -35,7 +35,11 @@ try {
         switch($action){
             case 'logout': $_SESSION=[];session_regenerate_id(true);$_SESSION['csrf']=bin2hex(random_bytes(32));$out=['csrf'=>$_SESSION['csrf']];break;
             case 'dashboard':
-                $out=['school'=>one('SELECT name FROM schools WHERE id=?',[$school])['name'],'classes'=>rows('SELECT c.*,COUNT(s.id) students FROM classes c LEFT JOIN students s ON s.class_id=c.id WHERE c.school_id=? GROUP BY c.id ORDER BY c.name',[$school]),'exams'=>rows('SELECT e.*,c.name class_name,(SELECT COUNT(*) FROM questions WHERE exam_id=e.id) questions,(SELECT COUNT(*) FROM enrollments WHERE exam_id=e.id) enrolled,(SELECT COUNT(*) FROM results WHERE exam_id=e.id) graded FROM exams e JOIN classes c ON c.id=e.class_id WHERE e.school_id=? ORDER BY e.date DESC,e.id DESC',[$school]),'student_count'=>(int)one('SELECT COUNT(*) n FROM students WHERE school_id=?',[$school])['n'],'result_count'=>(int)one('SELECT COUNT(*) n FROM results r JOIN exams e ON e.id=r.exam_id WHERE e.school_id=?',[$school])['n']];break;
+                $out=['school'=>one('SELECT name FROM schools WHERE id=?',[$school])['name'],'classes'=>rows('SELECT c.*,COUNT(s.id) students FROM classes c LEFT JOIN students s ON s.class_id=c.id WHERE c.school_id=? GROUP BY c.id ORDER BY c.name',[$school]),'exams'=>array_map('with_exam_classes',rows('SELECT e.*,(SELECT COUNT(*) FROM questions WHERE exam_id=e.id) questions,(SELECT COUNT(*) FROM enrollments WHERE exam_id=e.id) enrolled,(SELECT COUNT(*) FROM results WHERE exam_id=e.id) graded FROM exams e WHERE e.school_id=? ORDER BY e.date DESC,e.id DESC',[$school])),'student_count'=>(int)one('SELECT COUNT(*) n FROM students WHERE school_id=?',[$school])['n'],'result_count'=>(int)one('SELECT COUNT(*) n FROM results r JOIN exams e ON e.id=r.exam_id WHERE e.school_id=?',[$school])['n']];break;
+            case 'class_update':
+                $cid=(int)($body['id']??0);if(!one('SELECT id FROM classes WHERE id=? AND school_id=?',[$cid,$school]))fail('Turma não encontrada.',404);
+                $grade=strval_trim($body['grade_name']??'');if(mb_strlen($grade)>180||preg_match('/[\x00-\x1F]/u',$grade))fail('Série inválida.');
+                query('UPDATE classes SET grade_name=? WHERE id=?',[$grade,$cid]);audit('class.updated',$cid);$out=['message'=>'Série da turma atualizada.'];break;
             case 'students': $out=rows('SELECT s.*,c.name class_name FROM students s JOIN classes c ON c.id=s.class_id WHERE s.school_id=? ORDER BY c.name,s.name',[$school]);break;
             case 'student_update':
                 $id=(int)($body['id']??0);if(!one('SELECT id FROM students WHERE id=? AND school_id=?',[$id,$school]))fail('Estudante não encontrado.',404);
@@ -52,22 +56,44 @@ try {
                 $out=commit_import($_SESSION['import'],$p['mapping'],$school);unset($_SESSION['import'],$_SESSION['import_preview']);audit('students.imported',$out['imported']);break;
             case 'create_exam':
                 $out=transaction(function()use($body,$school,$u){
-                    $cid=(int)($body['class_id']??0);if(!one('SELECT id FROM classes WHERE id=? AND school_id=?',[$cid,$school]))fail('Selecione uma turma importada.');
+                    $scope=$body['scope']??'classes';
+                    if($scope==='grade'){
+                        $grade=text_field($body['grade_name']??'');
+                        $cids=array_map('intval',array_column(rows('SELECT id FROM classes WHERE school_id=? AND grade_name=? ORDER BY id',[$school,$grade]),'id'));
+                    }elseif($scope==='classes'){
+                        $selected=$body['class_ids']??[($body['class_id']??0)];if(!is_array($selected))fail('Selecione uma ou mais turmas.');
+                        $cids=array_values(array_unique(array_map('intval',$selected)));
+                    }else fail('Abrangência inválida.');
+                    if(!$cids)fail('Selecione ao menos uma turma cadastrada ou uma série com turmas.');
+                    foreach($cids as $selected)if(!one('SELECT id FROM classes WHERE id=? AND school_id=?',[$selected,$school]))fail('Turma fora da escola ou não encontrada.');
+                    $cid=$cids[0];
                     $name=text_field($body['name']??'');$date=(string)($body['date']??'');$d=DateTimeImmutable::createFromFormat('!Y-m-d',$date);if(!$d||$d->format('Y-m-d')!==$date)fail('Data inválida.');
                     $alt=(int)($body['alternatives']??5);if($alt<2||$alt>5)fail('Escolha de 2 a 5 alternativas.');
                     $areas=$body['areas']??[];if(!is_array($areas)||!count($areas)||count($areas)>30)fail('Cadastre entre 1 e 30 áreas.');$total=0;$names=[];
                     foreach($areas as &$a){$a['name']=text_field($a['name']??'');$key=mb_strtolower($a['name']);if(isset($names[$key]))fail('Áreas repetidas.');$names[$key]=true;$a['count']=(int)($a['count']??0);if($a['count']<1||$a['count']>240)fail('Cada área deve ter de 1 a 240 questões.');$total+=$a['count'];$answers=$a['answers']??[];if(count($answers)!==$a['count'])fail('Preencha todo o gabarito.');foreach($answers as $answer)if(!is_string($answer)||strlen($answer)!==1||$answer<'A'||$answer>chr(64+$alt))fail('Alternativa do gabarito inválida.');}unset($a);
                     if($total>240)fail('Limite de 240 questões por simulado, em até 4 folhas.');
-                    $students=array_values(array_unique(array_map('intval',$body['students']??[])));if(!$students)fail('Inclua pelo menos um estudante.');foreach($students as $sid)if(!one('SELECT id FROM students WHERE id=? AND class_id=? AND school_id=?',[$sid,$cid,$school]))fail('Estudante fora da turma selecionada.');
+                    if($scope==='grade'){
+                        $students=array_map('intval',array_column(rows('SELECT s.id FROM students s JOIN classes c ON c.id=s.class_id WHERE s.school_id=? AND c.grade_name=?',[$school,$grade]),'id'));
+                    }else{
+                        $students=$body['students']??null;
+                        if($students===null){$marks=implode(',',array_fill(0,count($cids),'?'));$students=array_column(rows('SELECT id FROM students WHERE school_id=? AND class_id IN ('.$marks.')',array_merge([$school],$cids)),'id');}
+                        if(!is_array($students))fail('Participantes inválidos.');$students=array_values(array_unique(array_map('intval',$students)));
+                    }
+                    if(!$students)fail('Inclua pelo menos um estudante.');$studentClasses=[];
+                    foreach($students as $sid){$s=one('SELECT class_id FROM students WHERE id=? AND school_id=?',[$sid,$school]);if(!$s||!in_array((int)$s['class_id'],$cids,true))fail('Estudante fora das turmas selecionadas.');$studentClasses[$sid]=(int)$s['class_id'];}
                     query('INSERT INTO exams(school_id,class_id,name,date,alternatives,created_by) VALUES(?,?,?,?,?,?)',[$school,$cid,$name,$date,$alt,$u['id']]);$eid=(int)db()->lastInsertId();$n=0;
                     foreach($areas as $pos=>$a){query('INSERT INTO areas(exam_id,name,position) VALUES(?,?,?)',[$eid,$a['name'],$pos]);$aid=(int)db()->lastInsertId();foreach($a['answers'] as $answer)query('INSERT INTO questions(exam_id,area_id,number,answer) VALUES(?,?,?,?)',[$eid,$aid,++$n,$answer]);}
-                    foreach($students as $sid)query('INSERT INTO enrollments(exam_id,student_id) VALUES(?,?)',[$eid,$sid]);audit('exam.created',$eid);return ['id'=>$eid];});break;
+                    foreach($cids as $selected)query('INSERT INTO exam_classes(exam_id,class_id) VALUES(?,?)',[$eid,$selected]);
+                    foreach($students as $sid)query('INSERT INTO enrollments(exam_id,student_id,class_id) VALUES(?,?,?)',[$eid,$sid,$studentClasses[$sid]]);audit('exam.created',$eid);return ['id'=>$eid];});break;
             case 'exam': $out=exam_detail((int)($_GET['id']??0));break;
             case 'generate_cards':
                 $id=(int)($body['exam_id']??0);$e=exam_detail($id);$count=(int)($body['count']??1);if($count<1||$count>200)fail('Gere de 1 a 200 conjuntos por lote.');
-                $out=transaction(function()use($e,$count){$ids=[];$total=count($e['questions']);for($i=0;$i<$count;$i++){query('INSERT INTO booklets(exam_id) VALUES(?)',[$e['id']]);$bid=(int)db()->lastInsertId();$ids[]=$bid;for($start=1,$page=1;$start<=$total;$start+=60,$page++)query('INSERT INTO cards(booklet_id,token,page,start_number,question_count) VALUES(?,?,?,?,?)',[$bid,bin2hex(random_bytes(16)),$page,$start,min(60,$total-$start+1)]);}audit('cards.generated',(int)$e['id']);return ['booklets'=>$ids];});break;
+                $reusable=($body['reusable']??true)!==false;
+                $out=transaction(function()use($e,$count,$reusable){
+                    if($reusable){$existing=one('SELECT id FROM booklets WHERE exam_id=? AND reusable=1 AND template_id IS NULL ORDER BY id LIMIT 1',[$e['id']]);if($existing)return ['booklets'=>[(int)$existing['id']],'reusable'=>true];}
+                    $ids=[];$total=count($e['questions']);for($i=0;$i<($reusable?1:$count);$i++){query('INSERT INTO booklets(exam_id,reusable) VALUES(?,?)',[$e['id'],$reusable?1:0]);$bid=(int)db()->lastInsertId();$ids[]=$bid;for($start=1,$page=1;$start<=$total;$start+=60,$page++)query('INSERT INTO cards(booklet_id,token,page,start_number,question_count) VALUES(?,?,?,?,?)',[$bid,bin2hex(random_bytes(16)),$page,$start,min(60,$total-$start+1)]);}audit('cards.generated',(int)$e['id']);return ['booklets'=>$ids,'reusable'=>$reusable];});break;
             case 'cards':
-                $e=exam((int)($_GET['exam_id']??0));$out=['exam'=>$e,'questions'=>rows('SELECT q.number,a.name area FROM questions q JOIN areas a ON a.id=q.area_id WHERE q.exam_id=? ORDER BY q.number',[$e['id']]),'cards'=>rows('SELECT c.id,c.token,c.page,c.start_number,c.question_count,c.booklet_id FROM cards c JOIN booklets b ON b.id=c.booklet_id WHERE b.exam_id=? ORDER BY b.id,c.page',[$e['id']])];break;
+                $e=exam((int)($_GET['exam_id']??0));$out=['exam'=>$e,'questions'=>rows('SELECT q.number,a.name area FROM questions q JOIN areas a ON a.id=q.area_id WHERE q.exam_id=? ORDER BY q.number',[$e['id']]),'cards'=>rows('SELECT c.id,c.token,c.page,c.start_number,c.question_count,c.booklet_id,b.reusable FROM cards c JOIN booklets b ON b.id=c.booklet_id WHERE b.exam_id=? AND b.template_id IS NULL ORDER BY b.id,c.page',[$e['id']])];break;
             case 'identify': $out=identify_card((string)($_GET['token']??''),(int)($_GET['exam_id']??0));unset($out['scores']);break;
             case 'scan': $out=save_scan((int)($body['exam_id']??0),(string)($body['token']??''),(int)($body['student_id']??0),$body['scores']??[],$body['quality']??[]);break;
             case 'report':$out=report((int)($_GET['id']??0));break;

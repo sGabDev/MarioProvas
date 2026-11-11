@@ -23,7 +23,7 @@ C:\xampp\php\php.exe -S localhost:8080 -t public
 
 O instalador solicita escola, nome, e-mail e senha do primeiro administrador. A senha deve ter de 12 a 200 caracteres. A entrada no instalador CLI é visível no terminal; para entrada mascarada, use a instalação web abaixo. A instalação só pode acontecer uma vez por banco. Abra **http://localhost:8080**. Com Apache/XAMPP, também pode abrir a pasta `public/` deste projeto, conforme o seu VirtualHost.
 
-Não inicie o servidor embutido do PHP na raiz do projeto: ele não interpreta `.htaccess`. Use sempre `-t public`.
+Se o DocumentRoot do Apache/XAMPP apontar para a raiz deste projeto, **http://localhost/** redireciona para **http://localhost/public/**. A entrada `index.php` usa uma URL relativa, compatível com Windows e instalações em subpastas. Não inicie o servidor embutido do PHP na raiz do projeto: ele não interpreta `.htaccess`. Use sempre `-t public`.
 
 ## Instalar na Hostinger
 
@@ -37,7 +37,7 @@ Use hospedagem **PHP**, não um plano restrito ao construtor visual. Confira a d
 6. Desative cache de página/CDN para `api.php`, páginas autenticadas e impressão. O projeto envia `Cache-Control: no-store, private`. Preserve cookies de sessão e cabeçalhos de segurança. Para Nginx ou servidores que ignoram `.htaccess`, exponha **somente `public/`** e implemente os cabeçalhos equivalentes.
 7. Teste sem autenticação: os endereços do CSV, `storage/`, `app/` e `config.php` devem retornar 403/404; a API não deve fornecer dados. Faça backup privado antes de colocar dados em uso.
 
-O caminho do banco pode ser alterado em `config.php`. O padrão é `storage/marioprovas.sqlite`. O banco usa WAL; a pasta inteira precisa ser gravável. Variáveis de ambiente `MARIOPROVAS_DB` e `MARIOPROVAS_SETUP_KEY` são alternativas quando não há configuração explícita no arquivo.
+O caminho do banco pode ser alterado em `config.php`. O padrão é `storage/marioprovas.sqlite`. O banco usa WAL; a pasta inteira precisa ser gravável. Variáveis de ambiente `MARIOPROVAS_DB` e `MARIOPROVAS_SETUP_KEY`, quando definidas pelo operador, têm prioridade sobre `config.php`; isso também permite executar os testes em bancos isolados com uma configuração local existente.
 
 ## CSV real e importação
 
@@ -48,6 +48,7 @@ O único arquivo inicial encontrado foi `ID_EEEM_MARIO__29311.csv`. Ele foi mant
 - identificador: **`id`**;
 - nome: **`Aluno: Nome`**;
 - turma: **`Turma: Nome`**;
+- série / ano escolar: **`Ano de escolaridade: Nome`**, agora disponível como mapeamento opcional;
 - não há coluna de nome social; `Aluno: INEP` é uma coluna adicional e não substitui o `id` sugerido;
 - SHA-256: `5ec85d23bfdeb77cbf87a8593fb85880e66bda4663b7bcc9d099b0a709449c85`.
 
@@ -57,27 +58,37 @@ O identificador é armazenado como texto, preservando zeros à esquerda. Linhas 
 
 O upload fica temporariamente na sessão privada do PHP para permitir o mapeamento. É removido da sessão ao concluir a importação ou sair. Não há cópia permanente do CSV enviada pelo navegador; endereços, telefones, dados de responsáveis, CPF, filiação etc. não entram nas tabelas de estudantes. Configure sessões PHP em diretório privado e coleta de sessões expiradas no servidor.
 
+## Várias turmas ou uma série inteira
+
+Em **Novo simulado → Aplicar para**, escolha **Uma ou mais turmas** e marque as turmas, ou escolha **Toda uma série / ano escolar**. No segundo modo, o servidor inclui todos os estudantes das turmas cadastradas naquela série; no primeiro, é possível conferir e selecionar participantes individualmente.
+
+A série não é adivinhada pelo nome da turma. Na importação, relacione a coluna `Ano de escolaridade: Nome` à série. Para turmas já importadas, abra **Turmas e estudantes → Abrir turma → Definir série**. Use exatamente o mesmo nome de série nas turmas que devem ser agrupadas. Também é possível reimportar o CSV com a coluna de série: a prévia informa quantas turmas sem série serão completadas, e a confirmação não duplica os estudantes. Séries conflitantes precisam de conferência antes da importação.
+
+A turma de participação é registrada ao incluir o estudante no simulado. Uma mudança posterior no cadastro não altera a turma dos resultados históricos. O relatório apresenta o total do simulado e a comparação entre as turmas participantes; o CSV identifica a turma de cada estudante.
+
 ## Criar e aplicar uma avaliação
 
-1. Em **Novo simulado**, informe nome, data, turma e 2 a 5 alternativas (padrão A–E).
+1. Em **Novo simulado**, informe nome, data, uma ou mais turmas (ou a série inteira) e 2 a 5 alternativas (padrão A–E).
 2. Mantenha uma disciplina para uma prova simples ou adicione várias áreas. Estão sugeridas Linguagens, Ciências Humanas, Ciências da Natureza e Matemática. Nomes personalizados são aceitos. As quantidades podem ser diferentes.
 3. Selecione os participantes importados. Clique em **Montar gabarito**, preencha todas as questões e crie o simulado. O gabarito é fixo após a criação para não invalidar cartões ou resultados existentes.
-4. Gere os conjuntos de cartões e abra a impressão do lote. É possível reimprimir o mesmo conjunto na tabela. **Uma reimpressão conserva o QR e não permite uma segunda correção.** Gere outro conjunto apenas para outro estudante.
-5. Imprima em A4 branco, escala 100%, sem cabeçalhos/rodapés. Cada folha contém até 60 questões; provas maiores usam até quatro folhas do mesmo conjunto. Guarde essas folhas juntas. O QR tem somente um token aleatório de 128 bits, relacionado ao conjunto e ao simulado no servidor.
+4. Clique em **Gerar modelo reutilizável** e abra a impressão. Imprima uma matriz e tire as cópias necessárias: **o mesmo QR pode ser usado para vários estudantes**. Reabrir a impressão mantém o mesmo modelo e os mesmos QR codes. As respostas são reconhecidas separadamente em cada folha preenchida e salvas para o aluno selecionado. Não há lançamento automático da mesma resposta para toda a turma.
+5. Imprima em A4 branco, escala 100%, sem cabeçalhos/rodapés. Cada folha contém até 60 questões; provas maiores usam até quatro folhas do mesmo modelo, com QR próprio por página. O QR tem somente um token aleatório de 128 bits, relacionado ao modelo e ao simulado no servidor. Cada estudante precisa preencher sua própria cópia (ou uma folha reutilizável devidamente limpa entre os usos).
 6. O estudante escreve o nome no campo impresso e preenche as bolhas com caneta preta. O nome manuscrito não é reconhecido por OCR: serve à conferência do professor ao selecionar o cadastro depois da leitura.
 
-Limites atuais: 240 questões, 30 áreas e 200 conjuntos por lote de geração. Um simulado pode incluir toda a turma ou parte dela. Não há preenchimento automático de gabarito nem resultados inventados.
+Limites atuais: 240 questões e 30 áreas. Há um modelo reutilizável por simulado. Um simulado pode incluir uma ou várias turmas, participantes selecionados ou todos os estudantes de uma série. Não há preenchimento automático de gabarito nem resultados inventados.
+
+Cartões individuais gerados na versão anterior continuam válidos e mantêm seu funcionamento original de um aluno por conjunto. Para compartilhar o QR em um simulado antigo, abra-o e gere o novo modelo reutilizável. A atualização do banco é automática e preserva cadastros, gabaritos, cartões e resultados existentes; não é necessário reinstalar o sistema.
 
 ## Testar a câmera com papel impresso
 
-1. Em uma avaliação real autorizada, gere um conjunto para um estudante participante. Confira o gabarito antes da impressão.
+1. Em uma avaliação real autorizada, gere o modelo reutilizável e prepare duas cópias para dois estudantes participantes. Confira o gabarito antes da impressão.
 2. Preencha algumas bolhas, deixe uma questão em branco e marque duas alternativas em outra. Anote a expectativa em papel para comparar depois.
 3. No celular/tablet/computador, abra o simulado → **Ler cartões** → **Ativar câmera**. Só nesse momento o navegador solicita permissão. Use HTTPS; em localhost, o teste deve ser feito no mesmo computador.
 4. Use a câmera traseira, se disponível, boa iluminação uniforme e folha plana sobre uma superfície sem desenhos. Deixe as quatro marcas dentro da imagem. Mantenha a câmera firme até duas capturas concordarem. É possível escolher outra câmera após autorizar o acesso.
 5. Confira a imagem alinhada e as marcações reconhecidas. Selecione o estudante pelo nome e identificador e toque em **Salvar para este estudante**. A comparação com o gabarito e a gravação acontecem automaticamente. Não é possível digitar letras como alternativa à leitura.
-6. Em provas multipágina, a primeira folha vincula o conjunto; as demais exigem o mesmo estudante. O resultado só é criado quando todas as folhas forem lidas. Páginas parciais persistem no servidor e podem ser retomadas após sair.
-7. Toque em **Próximo cartão** para continuar com a mesma câmera. Ao sair da leitura, ocultar a página ou fechar a tela, as trilhas da câmera são encerradas. Ao voltar, reinicie a câmera.
-8. Tente reler a mesma folha: deve aparecer aviso de cartão já processado. Tente um cartão de outro simulado: deve ser rejeitado. QR desconhecido, enquadramento cortado, desfoque, sombra e preenchimento ambíguo não salvam a tentativa. Refaça a captura; não há digitação manual para contornar a falha.
+6. Em provas multipágina, selecione o estudante em cada folha. O resultado de cada aluno só é criado quando todas as páginas do modelo forem lidas para ele. É possível intercalar páginas de alunos diferentes; as respostas permanecem separadas. Páginas parciais persistem no servidor e podem ser retomadas após sair.
+7. Toque em **Próximo cartão**, retire a folha anterior do enquadramento e apresente a cópia do próximo estudante. O QR pode ser o mesmo. A câmera continua ativa. Ao sair da leitura, ocultar a página ou fechar a tela, as trilhas da câmera são encerradas. Ao voltar, reinicie a câmera.
+8. Salvar a mesma página novamente para o mesmo estudante deve ser bloqueado, assim como criar dois resultados para o mesmo aluno no simulado. No modelo reutilizável, ler o mesmo QR para outro estudante é permitido. Alunos já corrigidos ou que já receberam aquela página não aparecem como opções pendentes no leitor. Um cartão de outro simulado deve ser rejeitado. QR desconhecido, enquadramento cortado, desfoque, sombra e preenchimento ambíguo não salvam a tentativa. Refaça a captura; não há digitação manual para contornar a falha.
 9. Compare o resultado individual: branco e múltiplas devem aparecer como anuladas; percentual = acertos / válidas. Nenhuma válida significa percentual **não calculável**, e não 0%.
 
 As imagens ficam na memória do dispositivo durante a leitura, não são enviadas nem armazenadas no servidor. São persistidas as medições de preenchimento por alternativa, o responsável pela leitura, a data e as respostas classificadas. Os parâmetros de qualidade não são prova criptográfica de captura: o professor autenticado continua responsável pela associação e conferência.
@@ -86,7 +97,7 @@ As imagens ficam na memória do dispositivo durante a leitura, não são enviada
 
 O resultado individual mostra acertos, válidas, anuladas, percentual, áreas, melhor/pior área (incluindo empates), e classificação de cada questão. Sem área com questões válidas, não determina melhor/pior.
 
-O relatório da turma mostra média da quantidade de acertos, média dos percentuais individuais, média por área, distribuição em faixas, corretas/incorretas/brancas/múltiplas por questão, ordenação por índice de acerto, comparação entre simulados da mesma turma e evolução de cada estudante ao longo das datas de aplicação. Estudantes sem nenhuma válida não entram na média percentual. As comparações não normalizam dificuldade nem composição da turma. As indicações pedagógicas apresentam os números e são formuladas como possibilidades de investigação.
+O relatório do simulado mostra média da quantidade de acertos, média dos percentuais individuais, média por área, distribuição em faixas, corretas/incorretas/brancas/múltiplas por questão, ordenação por índice de acerto, comparação entre as turmas participantes e entre simulados que compartilham turmas e evolução de cada estudante ao longo das datas de aplicação. Estudantes sem nenhuma válida não entram na média percentual. As comparações não normalizam dificuldade nem composição da turma. As indicações pedagógicas apresentam os números e são formuladas como possibilidades de investigação.
 
 **Exportar CSV / Excel** baixa CSV UTF-8 com BOM e separador `;`, organizado por simulado, data, turma, identificador, estudante, área e TOTAL. Abre no Excel; não é um arquivo `.xlsx`. Campos capazes de iniciar fórmulas são neutralizados. O nome social tem preferência no relatório e na exportação, sem remover o nome civil do cadastro privado.
 
@@ -102,10 +113,11 @@ Defina a política de retenção da escola e faça backups criptografados fora d
 npm.cmd ci --ignore-scripts
 npm.cmd run test:omr
 python tests/integration.py
+python tests/migration.py
 C:\xampp\php\php.exe scripts/check.php
 ```
 
-Node e Python são necessários **somente para desenvolvimento/testes**, não para servir a aplicação. Em Linux use `npm` e ajuste `PHP_BIN` se necessário. As dependências de teste são fixadas no lockfile. Veja [docs/VERIFICACAO.md](docs/VERIFICACAO.md) para a evidência e os limites de validação.
+Node e Python são necessários **somente para desenvolvimento/testes**, não para servir a aplicação. Em Linux use `npm` e ajuste `PHP_BIN` se necessário. As dependências de teste são fixadas no lockfile. Se o CSV original não estiver mais na pasta, a integração usa os cadastros reais da base local apenas como fonte de leitura e monta o CSV de teste em memória. Todas as importações e correções de teste acontecem em SQLite temporário. O teste de migração também usa uma cópia privada da base existente, sem atualizar a origem. Veja [docs/VERIFICACAO.md](docs/VERIFICACAO.md) para a evidência e os limites de validação.
 
 O reconhecimento óptico é implementado e testado sobre imagens rasterizadas com QR real e bolhas reais nos pixels, incluindo perspectiva. **Isso não equivale a homologação com câmera física, impressão, luz e dispositivos da escola.** Faça o roteiro de papel acima antes do uso em uma aplicação de prova. Caneta fraca, rasuras, folhas curvadas, impressões distorcidas e iluminação irregular podem exigir nova leitura. Não há promessa de leitura de cartões externos ou reconhecimento de X, tiques ou letras manuscritas nas bolhas.
 

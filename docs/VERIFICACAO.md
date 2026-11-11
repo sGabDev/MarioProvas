@@ -1,5 +1,15 @@
 # Registro de verificação — 10/11/2026
 
+## Atualização de 11/11/2026 — várias turmas e QR reutilizável
+
+- Os 7 testes ópticos continuam aprovados, sem alteração no reconhecimento das bolhas.
+- A integração ampliada passou em **35 verificações**, incluindo um simulado de duas turmas, seleção de série inteira no servidor, mapeamento da série pelo CSV, preenchimento de série na reimportação sem duplicar alunos, QR compartilhado por dois estudantes com respostas diferentes, páginas intercaladas, bloqueio de página/resultados repetidos para o mesmo estudante, comparação por turma e exportação com turma individual.
+- O teste da interface DOM criou uma avaliação para duas turmas, conferiu o modo série, leu duas cópias com o mesmo QR para alunos diferentes, salvou dois resultados e manteve apenas uma ativação da câmera. A fonte de vídeo continua substituída por imagens de teste; isso não constitui homologação de câmera física.
+- A migração foi executada duas vezes em uma cópia privada da base anterior. Todas as linhas e colunas originais de cadastros, simulados, gabaritos, cartões e resultados foram preservadas; as relações de turmas e a integridade referencial foram conferidas. Um backup consistente privado foi criado antes da atualização local.
+- A seleção de séries usa somente informações cadastradas/importadas; não deduz série pelo nome da turma. Os cartões individuais anteriores conservam seu comportamento original. O novo modelo pode ser gerado em um simulado existente.
+
+As verificações abaixo registram a entrega inicial. Os limites de validação física continuam os mesmos.
+
 ## Executado
 
 - PHP 8.2.33: análise de sintaxe dos arquivos PHP e verificação das extensões PDO SQLite, mbstring, sessão e JSON; pasta de armazenamento gravável; dependências e ícones locais presentes.

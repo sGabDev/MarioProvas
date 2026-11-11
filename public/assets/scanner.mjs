@@ -131,6 +131,7 @@ export function openScanner(exam, ui) {
             const qr = window.jsQR(image.data, image.width, image.height, { inversionAttempts: 'dontInvert' });
             if (!qr) {
                 s.stable = null;
+                s.removeGuard = null;
                 status('QR não identificado. Enquadre a folha inteira, aproxime e melhore a luz. Nada foi salvo.');
                 return;
             }
@@ -152,13 +153,20 @@ export function openScanner(exam, ui) {
             const reading = readCard(image, qr, card.question_count, exam.alternatives);
             const signature = JSON.stringify(reading.answers),
                 stable = s.stable;
+            if(s.removeGuard && s.removeGuard.token===qr.data && s.removeGuard.signature===signature){
+                s.stable=null;status('Retire a folha já salva do enquadramento antes de apresentar o próximo aluno.');return;
+            }
+            s.removeGuard=null;
             if (!stable || stable.token !== qr.data || stable.signature !== signature) {
                 s.stable = { token: qr.data, signature };
                 status('Cartão alinhado. Mantenha a câmera firme para confirmar as marcações…');
                 return;
             }
-            s.paused = true;
             s.stable = null;
+            const latest = await api('exam', undefined, {id:exam.id});
+            if(active!==s||s.stopped)return;
+            exam.students=latest.students;
+            s.paused = true;
             status('Leitura reconhecida. Confira a folha e escolha o estudante.');
             renderReview(card, qr.data, reading);
         } catch (e) {
@@ -179,11 +187,11 @@ export function openScanner(exam, ui) {
         const available = exam.students.filter(
             (student) =>
                 !student.result_id &&
-                (!student.booklet_id || student.booklet_id === card.booklet) &&
+                (card.reusable ? (!student.booklet_id || student.template_id === card.booklet) && !(student.scanned_pages||[]).includes(card.page) : (!student.booklet_id || student.booklet_id === card.booklet)) &&
                 (!card.student_id || student.id === card.student_id),
         );
         const review = modal.querySelector('#review');
-        review.innerHTML = `<section class="card" style="margin-top:12px"><div class="scan-review"><div><canvas id="aligned" width="800" height="1120" aria-label="Imagem do cartão alinhado"></canvas></div><div><h3>Conjunto #${card.booklet} · folha ${card.page}</h3><p class="small muted">Questões ${card.start_number}–${card.start_number + card.question_count - 1}. A imagem ao lado foi capturada da câmera.</p><div class="scan-counts"><span><strong>${reading.answers.filter((a) => a.length === 1).length}</strong> válidas</span><span><strong>${reading.blank}</strong> em branco</span><span><strong>${reading.multiple}</strong> múltiplas</span></div><p class="small muted">Branco e múltiplas serão anuladas. Não contam como erros.</p><form id="assign"><div class="field"><label for="scan-student">De qual estudante é este cartão?</label><select id="scan-student" required><option value="">Selecione pelo nome / identificador</option>${available.map((student) => `<option value="${student.id}" ${card.student_id === student.id ? 'selected' : ''}>${esc(student.social_name || student.name)} · ${esc(student.external_id)}</option>`).join('')}</select></div>${card.student_id ? '<p class="small muted">Este conjunto já foi vinculado na leitura de outra folha. A associação será mantida.</p>' : ''}<div class="actions"><button type="submit" id="save-scan" ${available.length ? '' : 'disabled'}>Salvar para este estudante</button><button class="secondary" type="button" id="retry-scan">Refazer leitura</button></div><div id="save-error" role="alert"></div></form></div></div><details style="margin-top:18px"><summary class="small link">Ver marcações reconhecidas</summary><div class="report-questions" style="margin-top:15px">${reading.answers.map((a, i) => `<div class="question-chip ${a.length === 1 ? '' : 'blank'}"><strong>Q${card.start_number + i}</strong>${a.length === 1 ? a[0] : a.length ? 'Anulada: ' + a.join(', ') : 'Anulada: branco'}</div>`).join('')}</div></details></section>`;
+        review.innerHTML = `<section class="card" style="margin-top:12px"><div class="scan-review"><div><canvas id="aligned" width="800" height="1120" aria-label="Imagem do cartão alinhado"></canvas></div><div><h3>${card.reusable ? 'Modelo reutilizável' : 'Conjunto'} #${card.booklet} · folha ${card.page}</h3><p class="small muted">Questões ${card.start_number}–${card.start_number + card.question_count - 1}. A imagem ao lado foi capturada da câmera.</p><div class="scan-counts"><span><strong>${reading.answers.filter((a) => a.length === 1).length}</strong> válidas</span><span><strong>${reading.blank}</strong> em branco</span><span><strong>${reading.multiple}</strong> múltiplas</span></div><p class="small muted">Branco e múltiplas serão anuladas. Não contam como erros.</p><form id="assign"><div class="field"><label for="scan-student">De qual estudante é este cartão?</label><select id="scan-student" required><option value="">Selecione pelo nome / identificador</option>${available.map((student) => `<option value="${student.id}" ${card.student_id === student.id ? 'selected' : ''}>${esc(student.social_name || student.name)} · ${esc(student.class_name || '')} · ${esc(student.external_id)}</option>`).join('')}</select></div>${card.reusable ? '<p class="small muted">Este QR pode ser usado por vários alunos. Confira a turma e selecione o estudante desta folha.</p>' : ''}${card.student_id ? '<p class="small muted">Este conjunto já foi vinculado na leitura de outra folha. A associação será mantida.</p>' : ''}<div class="actions"><button type="submit" id="save-scan" ${available.length ? '' : 'disabled'}>Salvar para este estudante</button><button class="secondary" type="button" id="retry-scan">Refazer leitura</button></div><div id="save-error" role="alert"></div></form></div></div><details style="margin-top:18px"><summary class="small link">Ver marcações reconhecidas</summary><div class="report-questions" style="margin-top:15px">${reading.answers.map((a, i) => `<div class="question-chip ${a.length === 1 ? '' : 'blank'}"><strong>Q${card.start_number + i}</strong>${a.length === 1 ? a[0] : a.length ? 'Anulada: ' + a.join(', ') : 'Anulada: branco'}</div>`).join('')}</div></details></section>`;
         const canvas = review.querySelector('#aligned'),
             cx = canvas.getContext('2d'),
             image = cx.createImageData(800, 1120);
@@ -208,11 +216,14 @@ export function openScanner(exam, ui) {
                     quality: reading.quality,
                 });
                 if (active !== s || s.stopped) return;
-                card.processed = true;
+                card.processed = !card.reusable;
+                if(card.reusable)s.removeGuard={token,signature:JSON.stringify(reading.answers)};
                 const student = exam.students.find((x) => x.id === studentId);
-                student.booklet_id = card.booklet;
+                student.booklet_id = out.booklet_id;
+                student.template_id = out.template_id;
+                student.scanned_pages=[...new Set([...(student.scanned_pages||[]),out.scanned_page])];
                 if (out.complete) student.result_id = out.result_id;
-                for (const known of s.identity.values())
+                if(!card.reusable)for (const known of s.identity.values())
                     if (known.booklet === card.booklet) known.student_id = studentId;
                 toast(out.message);
                 ui.onSaved?.();

@@ -1,4 +1,5 @@
 Options -Indexes
+DirectoryIndex index.php
 <FilesMatch "(?i)\.(csv|sqlite|sqlite3|db|ini|log|json|md|zip)$">
   Require all denied
 </FilesMatch>
@@ -6,4 +7,3 @@ RewriteEngine On
 RewriteRule (^|/)\. - [F,L]
 RewriteRule ^(?:app|storage|tests|scripts|docs|dist|node_modules)(?:/|$) - [F,L,NC]
 RewriteRule ^(?:config(?:\.example)?\.php|install\.php)$ - [F,L,NC]
-RewriteRule ^$ public/ [R=302,L]

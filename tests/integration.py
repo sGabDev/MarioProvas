@@ -6,8 +6,17 @@ import csv, hashlib, http.cookiejar, io, json, os, pathlib, secrets, socket, sql
 
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 PHP=os.environ.get('PHP_BIN',r'C:\xampp\php\php.exe' if os.name=='nt' else 'php')
-CSV=next(ROOT.glob('*.csv'))
-original_hash=hashlib.sha256(CSV.read_bytes()).hexdigest()
+CSV=next(ROOT.glob('*.csv'),None)
+if CSV:
+    csv_content=CSV.read_bytes();original_hash=hashlib.sha256(csv_content).hexdigest()
+else:
+    # Se o original já não está na pasta, reutiliza somente os cadastros reais
+    # da base local em modo leitura. O arquivo de teste permanece em memória.
+    source=sqlite3.connect('file:'+str((ROOT/'storage/marioprovas.sqlite').resolve().as_posix())+'?mode=ro',uri=True)
+    buffer=io.StringIO();writer=csv.writer(buffer,delimiter=';');writer.writerow(['id','Aluno: Nome','Turma: Nome'])
+    writer.writerows(source.execute('SELECT s.external_id,s.name,c.name FROM students s JOIN classes c ON c.id=s.class_id ORDER BY s.id'))
+    source.close();csv_content=buffer.getvalue().encode('cp1252')
+    original_hash=None
 temp=pathlib.Path(tempfile.mkdtemp(prefix='marioprovas-test-')).resolve()
 with socket.socket() as sock:
     sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
@@ -59,7 +68,7 @@ try:
         response=urllib.request.urlopen(BASE+path)
         assert 'javascript' in response.headers['Content-Type'], 'Módulo servido com MIME incorreto'
     check(True,'módulos JavaScript servidos com MIME executável')
-    upload=c.call('upload',multipart=multipart(CSV.read_bytes()));mapping=upload['suggested']
+    upload=c.call('upload',multipart=multipart(csv_content));mapping=upload['suggested']
     check(mapping['external_id']=='0' and upload['headers'][int(mapping['name'])]=='Aluno: Nome' and upload['headers'][int(mapping['class_name'])]=='Turma: Nome' and mapping['social_name']=='','mapeamento das colunas reais e ausência de nome social')
     preview=c.call('preview',{'mapping':mapping})
     check(preview['counts']=={'ready':885,'invalid':0,'duplicate':0},'prévia do CSV real: 885 prontos, sem duplicidades')
@@ -68,11 +77,11 @@ try:
     check(imported['imported']==885 and dash['student_count']==885 and len(dash['classes'])==27,'importação persistente dos 885 estudantes e 27 turmas')
     ui_env=os.environ.copy();ui_env.update(MARIOPROVAS_TEST_URL=BASE,MARIOPROVAS_TEST_EMAIL=email,MARIOPROVAS_TEST_PASSWORD=password)
     subprocess.run(['node','tests/ui.mjs'],cwd=ROOT,env=ui_env,check=True,timeout=45)
-    c.call('upload',multipart=multipart(CSV.read_bytes()));p=c.call('preview',{'mapping':mapping})
+    c.call('upload',multipart=multipart(csv_content));p=c.call('preview',{'mapping':mapping})
     check(p['counts']['duplicate']==885 and p['counts']['ready']==0,'reimportação reconhece todos os identificadores existentes')
     out=c.call('import',{'nonce':p['nonce']});check(out['imported']==0 and c.call('dashboard')['student_count']==885,'reimportação idempotente')
     # Só recorta dados já existentes; não inventa cadastros para testes de validação.
-    real=list(csv.reader(io.StringIO(CSV.read_bytes().decode('cp1252')),delimiter=';'))
+    real=list(csv.reader(io.StringIO(csv_content.decode('cp1252')),delimiter=';'))
     buf=io.StringIO();wr=csv.writer(buf,delimiter=';');wr.writerow(['identificador','estudante','grupo']);wr.writerow([real[1][0],real[1][1],real[1][-1]]);wr.writerow(['',real[2][1],real[2][-1]]);wr.writerow([real[3][0],real[3][1]])
     c.call('upload',multipart=multipart(buf.getvalue().encode()));p=c.call('preview',{'mapping':{'external_id':'0','name':'1','class_name':'2','social_name':''}})
     check(p['counts']=={'ready':0,'invalid':2,'duplicate':1},'mapeamento alternativo, identificador ausente e linha malformada')
@@ -81,7 +90,7 @@ try:
     create={'class_id':cid,'name':'VERIFICAÇÃO AUTOMÁTICA (base isolada)','date':'2026-11-10','alternatives':5,'areas':[{'name':'Linguagens','count':17,'answers':['A']*17},{'name':'Matemática','count':53,'answers':['A']*53},{'name':'Ciências da Natureza','count':1,'answers':['A']}],'students':[x['id'] for x in members]}
     eid=c.call('create_exam',create)['id'];e=c.call('exam',params={'id':eid})
     check([a['count'] for a in e['areas']]==[17,53,1] and len(e['questions'])==71,'simulado de três áreas com quantidades distintas e gabarito persistido')
-    c.call('generate_cards',{'exam_id':eid,'count':2});cards=c.call('cards',params={'exam_id':eid})['cards'];first=cards[0];second=cards[1]
+    c.call('generate_cards',{'exam_id':eid,'count':2,'reusable':False});cards=c.call('cards',params={'exam_id':eid})['cards'];first=cards[0];second=cards[1]
     check(len(cards)==4 and first['question_count']==60 and second['question_count']==11 and all(len(x['token'])==32 for x in cards),'cartões multipágina com tokens aleatórios exclusivos')
     other=c.call('create_exam',{**create,'name':'OUTRA AVALIAÇÃO DE TESTE','areas':[{'name':'Disciplina única','count':1,'answers':['B']}]})['id']
     check(len(c.call('exam',params={'id':other})['areas'])==1,'prova de uma única disciplina')
@@ -107,9 +116,57 @@ try:
     check(sum(q['blank'] for q in report['questions'])==12 and sum(q['multiple'] for q in report['questions'])==1,'relatório separa respostas em branco de marcações múltiplas')
     exported=c.call('export',params={'id':eid},raw=True);csv_rows=list(csv.reader(io.StringIO(exported.decode('utf-8-sig')),delimiter=';'))
     check(len(csv_rows)==5 and len(csv_rows[0])==11,'exportação UTF-8/Excel com escola, turma, estudante, áreas e total')
+    # Mesma avaliação para duas turmas, mesmo QR e tentativas independentes.
+    cid2=next(s['class_id'] for s in ss if s['class_id']!=cid)
+    sid2=next(s['id'] for s in ss if s['class_id']==cid2)
+    cid3=next(s['class_id'] for s in ss if s['class_id'] not in [cid,cid2])
+    multi=c.call('create_exam',{**create,'name':'VERIFICAÇÃO MULTITURMAS','class_ids':[cid,cid2],'students':[sid,sid2]})['id']
+    detail=c.call('exam',params={'id':multi})
+    check(set(detail['class_ids'])=={cid,cid2} and len(detail['students'])==2,'um simulado associa várias turmas e preserva a turma de cada participante')
+    c.call('create_exam',{**create,'class_ids':[cid],'students':[sid2]},expected=422)
+    model=c.call('generate_cards',{'exam_id':multi})
+    same_model=c.call('generate_cards',{'exam_id':multi})
+    reusable=c.call('cards',params={'exam_id':multi})['cards'];p1,p2=reusable
+    check(model['booklets']==same_model['booklets'] and len(reusable)==2 and p1['reusable']==1,'modelo reutilizável único pode ser reaberto sem gerar novos QR codes')
+    common={'exam_id':multi,'quality':evidence['quality']}
+    c.call('scan',{**common,'token':p1['token'],'student_id':sid,'scores':evidence['scores']})
+    c.call('scan',{**common,'token':p1['token'],'student_id':sid,'scores':evidence['scores']},expected=409)
+    c.call('scan',{**common,'token':p1['token'],'student_id':sid2,'scores':[[0,1,0,0,0]]*60})
+    check(c.call('identify',params={'exam_id':multi,'token':p1['token']})['scanned_at'] is None and len(c.call('report',params={'id':multi})['students'])==0,'mesmo QR aceita dois estudantes, mantém páginas pendentes e rejeita repetição para o mesmo aluno')
+    result2=c.call('scan',{**common,'token':p2['token'],'student_id':sid2,'scores':[[1,0,0,0,0]]*11})
+    result1=c.call('scan',{**common,'token':p2['token'],'student_id':sid,'scores':[[0]*5]*11})
+    check(result1['correct']==11 and result1['valid']==58 and result1['annulled']==13 and result2['correct']==11 and result2['valid']==71 and result2['annulled']==0 and result1['booklet_id']!=result2['booklet_id'],'páginas intercaladas do mesmo modelo mantêm respostas, anuladas e resultados independentes')
+    c.call('scan',{**common,'token':p2['token'],'student_id':sid,'scores':[[0]*5]*11},expected=409)
+    model_detail=c.call('exam',params={'id':multi})
+    check(len(model_detail['booklets'])==1 and model_detail['booklets'][0]['uses']==2 and model_detail['booklets'][0]['completed']==2 and len(c.call('cards',params={'exam_id':multi})['cards'])==2,'impressão expõe apenas páginas do modelo; tentativas pessoais ficam separadas')
+    multi_report=c.call('report',params={'id':multi})
+    multi_csv=list(csv.reader(io.StringIO(c.call('export',params={'id':multi},raw=True).decode('utf-8-sig')),delimiter=';'))
+    expected_class_names={x['name'] for x in detail['classes']}
+    check(len(multi_report['students'])==2 and len(multi_report['classes'])==2 and {x[2] for x in multi_csv[1:]}==expected_class_names and sum(x['total'] for x in multi_report['classes'])==2,'relatório compara as turmas e CSV exporta a turma individual de cada estudante')
+    c.call('class_update',{'id':cid,'grade_name':'SÉRIE DE VERIFICAÇÃO ISOLADA'})
+    c.call('class_update',{'id':cid2,'grade_name':'SÉRIE DE VERIFICAÇÃO ISOLADA'})
+    grade_exam=c.call('create_exam',{**create,'scope':'grade','grade_name':'SÉRIE DE VERIFICAÇÃO ISOLADA','students':[sid]})['id']
+    grade_detail=c.call('exam',params={'id':grade_exam})
+    check(set(grade_detail['class_ids'])=={cid,cid2} and len(grade_detail['students'])==sum(1 for s in ss if s['class_id'] in [cid,cid2]),'seleção de série inclui todas as turmas e todos os estudantes, validada pelo servidor')
+    # Mapeia a coluna real de escolaridade quando fornecida; reimportação só
+    # preenche séries vazias, sem alterar ou duplicar estudantes existentes.
+    group=next(s for s in ss if s['class_id']==cid3)
+    buf=io.StringIO();wr=csv.writer(buf,delimiter=';');wr.writerow(['id','Aluno: Nome','Turma: Nome','Ano de escolaridade: Nome']);wr.writerow([group['external_id'],group['name'],group['class_name'],'SÉRIE DE VERIFICAÇÃO DA IMPORTAÇÃO'])
+    up=c.call('upload',multipart=multipart(buf.getvalue().encode('utf-8')))
+    check(up['suggested']['grade_name']=='3','importador reconhece a coluna de ano de escolaridade como série')
+    gp=c.call('preview',{'mapping':up['suggested']});out=c.call('import',{'nonce':gp['nonce']})
+    check(gp['grade_updates']==1 and out['imported']==0 and out['grades_updated']==1 and c.call('dashboard')['student_count']==885,'prévia e confirmação permitem completar séries sem duplicar estudantes já importados')
+    original=next(s for s in ss if s['id']==sid)
+    c.call('student_update',{'id':sid,'name':original['name'],'social_name':original['social_name'],'class_id':cid3})
+    after_move=c.call('report',params={'id':multi})
+    check(next(s for s in after_move['students'] if s['student_id']==sid)['class_id']==cid,'mudança posterior de turma preserva a turma de participação no relatório histórico')
+    c.call('student_update',{'id':sid,'name':original['name'],'social_name':original['social_name'],'class_id':cid})
     # Todos os dados da escola A devem ser invisíveis à conta da escola B.
     conn=sqlite3.connect(temp/'test.sqlite');hashed=conn.execute('SELECT password FROM users LIMIT 1').fetchone()[0];conn.execute('INSERT INTO schools(name) VALUES(?)',('Segunda escola de verificação',));schoolB=conn.execute('SELECT last_insert_rowid()').fetchone()[0];conn.execute('INSERT INTO users(school_id,name,email,password,role) VALUES(?,?,?,?,?)',(schoolB,'Verificação B','b@example.invalid',hashed,'teacher'));conn.commit();conn.close()
-    b=Client();b.call('state');b.call('login',{'email':'b@example.invalid','password':password});b.call('exam',params={'id':eid},expected=404);b.call('report',params={'id':eid},expected=404);b.call('individual',params={'id':out['result_id']},expected=404);b.call('export',params={'id':eid},expected=404);b.call('scan',scan,expected=404);b.call('team',expected=403);b.call('student_update',{'id':sid},expected=404)
+    b=Client();b.call('state');b.call('login',{'email':'b@example.invalid','password':password});b.call('exam',params={'id':eid},expected=404);b.call('report',params={'id':eid},expected=404);b.call('individual',params={'id':result1['result_id']},expected=404);b.call('export',params={'id':eid},expected=404);b.call('scan',scan,expected=404);b.call('team',expected=403);b.call('student_update',{'id':sid},expected=404)
+    b.call('class_update',{'id':cid,'grade_name':'x'},expected=404)
+    b.call('create_exam',{**create,'class_ids':[cid,cid2]},expected=422)
+    b.call('identify',params={'exam_id':multi,'token':p1['token']},expected=404)
     check(not b.call('students') and not b.call('dashboard')['exams'],'isolamento entre escolas em estudantes, avaliações, leitura, relatórios e exportação')
     # Arquivos privados nem estão sob o document root usado no teste.
     for path in ['../ID_EEEM_MARIO__29311.csv','storage/marioprovas.sqlite','app/schema.sql','config.php']:
@@ -117,7 +174,7 @@ try:
         except urllib.error.HTTPError as error:assert error.code==404
     check(True,'document root público não expõe CSV, configuração nem banco')
     c.call('logout',{});c.call('dashboard',expected=401)
-    check(hashlib.sha256(CSV.read_bytes()).hexdigest()==original_hash,'CSV original preservado byte a byte')
+    check(CSV is None or hashlib.sha256(CSV.read_bytes()).hexdigest()==original_hash,'fonte escolar preservada; testes exclusivamente em banco isolado')
     print(f'Concluído: {len(passed)} verificações de integração. Nenhum dado gravado na base da aplicação.')
 finally:
     server.terminate();server.wait(timeout=10);log.close()

@@ -46,12 +46,12 @@ function identify_card(string $token, int $examId): array
 {
     $e = exam($examId);
     $u = require_user();
-    $c = one('SELECT c.*,b.exam_id,b.student_id,b.id booklet,e.school_id FROM cards c JOIN booklets b ON b.id=c.booklet_id JOIN exams e ON e.id=b.exam_id WHERE c.token=? AND e.school_id=?', [$token, $u['school_id']]);
+    $c = one('SELECT c.*,b.exam_id,b.student_id,b.id booklet,b.reusable,b.template_id,e.school_id FROM cards c JOIN booklets b ON b.id=c.booklet_id JOIN exams e ON e.id=b.exam_id WHERE c.token=? AND e.school_id=?', [$token, $u['school_id']]);
     if (!$c)
         fail('QR desconhecido. O cartão não foi identificado.', 404);
     if ((int) $c['exam_id'] !== $examId)
         fail('Este cartão pertence a outro simulado.', 409);
-    if ($c['scanned_at'])
+    if ($c['scanned_at'] && !$c['reusable'])
         fail('Cartão já processado. Nenhum resultado foi duplicado.', 409);
     return $c;
 }
@@ -68,6 +68,25 @@ function save_scan(int $examId, string $token, int $studentId, array $scores, ar
         marks_from_scores($scores, (int) $e['alternatives']);
         if (!one('SELECT 1 FROM enrollments WHERE exam_id=? AND student_id=?', [$examId, $studentId]))
             fail('Estudante não incluído neste simulado.');
+        if (one('SELECT id FROM results WHERE exam_id=? AND student_id=?', [$examId, $studentId]))
+            fail('Este estudante já tem resultado neste simulado. Nenhum resultado foi duplicado.', 409);
+        $templateId = $c['reusable'] ? (int)$c['booklet'] : null;
+        if ($templateId) {
+            $attempt = one('SELECT id,template_id FROM booklets WHERE exam_id=? AND student_id=?', [$examId, $studentId]);
+            if ($attempt && (int)$attempt['template_id'] !== $templateId)
+                fail('Este estudante iniciou outro conjunto. Use o modelo correspondente para concluir as páginas.', 409);
+            if (!$attempt) {
+                query('INSERT INTO booklets(exam_id,student_id,template_id) VALUES(?,?,?)', [$examId, $studentId, $templateId]);
+                $attempt = ['id'=>(int)db()->lastInsertId()];
+                foreach(rows('SELECT page,start_number,question_count FROM cards WHERE booklet_id=? ORDER BY page',[$templateId]) as $page) {
+                    // As medições de cada estudante têm seus próprios registros;
+                    // o QR impresso e o modelo continuam livres para outras leituras.
+                    query('INSERT INTO cards(booklet_id,token,page,start_number,question_count) VALUES(?,?,?,?,?)',[$attempt['id'],bin2hex(random_bytes(16)),$page['page'],$page['start_number'],$page['question_count']]);
+                }
+            }
+            $c = one('SELECT c.*,b.exam_id,b.student_id,b.id booklet FROM cards c JOIN booklets b ON b.id=c.booklet_id WHERE c.booklet_id=? AND c.page=?',[$attempt['id'],$c['page']]);
+            if (!$c || $c['scanned_at']) fail('Esta folha já foi salva para este estudante. Leia a próxima folha ou escolha outro aluno.',409);
+        }
         if ($c['student_id'] && (int) $c['student_id'] !== $studentId)
             fail('As páginas deste conjunto já foram vinculadas a outro estudante.', 409);
         if (one('SELECT id FROM booklets WHERE exam_id=? AND student_id=? AND id<>?', [$examId, $studentId, $c['booklet']]))
@@ -78,7 +97,7 @@ function save_scan(int $examId, string $token, int $studentId, array $scores, ar
         $pending = count(array_filter($cards, fn($p) => !$p['scanned_at']));
         audit('card.scanned', (int) $c['id']);
         if ($pending)
-            return ['complete' => false, 'pending' => $pending, 'message' => 'Página salva. Faltam ' . $pending . ' página(s) deste conjunto.'];
+            return ['complete' => false, 'booklet_id'=>(int)$c['booklet'], 'template_id'=>$templateId, 'scanned_page'=>(int)$c['page'], 'pending' => $pending, 'message' => 'Página salva para este estudante. Faltam ' . $pending . ' página(s) deste conjunto.'];
         $marks = [];
         foreach ($cards as $page)
             $marks = array_merge($marks, marks_from_scores(json_decode($page['scores'], true), (int) $e['alternatives']));
@@ -88,6 +107,6 @@ function save_scan(int $examId, string $token, int $studentId, array $scores, ar
         $rid = (int) db()->lastInsertId();
         foreach ($r['responses'] as $a)
             query('INSERT INTO responses(result_id,question_id,marked,status) VALUES(?,?,?,?)', [$rid, $a['question_id'], $a['marked'], $a['status']]);
-        return ['complete' => true, 'result_id' => $rid, 'correct' => $r['correct'], 'valid' => $r['valid'], 'annulled' => $r['annulled'], 'percentage' => $r['percentage'], 'message' => 'Resultado corrigido e salvo.'];
+        return ['complete' => true, 'booklet_id'=>(int)$c['booklet'], 'template_id'=>$templateId, 'scanned_page'=>(int)$c['page'], 'result_id' => $rid, 'correct' => $r['correct'], 'valid' => $r['valid'], 'annulled' => $r['annulled'], 'percentage' => $r['percentage'], 'message' => 'Resultado corrigido e salvo.'];
     });
 }
