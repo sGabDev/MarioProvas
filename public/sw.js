@@ -1,5 +1,5 @@
-const CACHE = 'marioprovas-shell-v8';
-const FILES = ['./offline', './assets/app.css', './assets/scanner.css', './assets/icon-192.png', './assets/icon-512.png'];
+const CACHE = 'marioprovas-shell-v9';
+const FILES = ['./offline', './assets/tokens.css?v=ui9', './assets/app.css?v=ui9', './assets/scanner.css?v=ui9', './assets/icon-192.png', './assets/icon-512.png'];
 self.addEventListener('install', (event) => event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(FILES))));
 self.addEventListener('activate', (event) =>
     event.waitUntil(

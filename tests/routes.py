@@ -20,15 +20,15 @@ def expect(path,status=200,contains=None,base=BASE):
         if contains is not None:assert contains in response.read()
     checks+=1
 
-expect('',contains=b'assets/app.mjs?v=assessment8')
-expect('print?exam=1&sets=2',contains=b'assets/print.mjs?v=assessment8')
+expect('',contains=b'assets/app.mjs?v=ui9')
+expect('print?exam=1&sets=2',contains=b'assets/print.mjs?v=ui9')
 with request(BASE+'public/print.html?exam=1&sets=2') as response:
     assert response.status==200 and response.url==BASE+'print?exam=1&sets=2'
 checks+=1
 for legacy,clean in [('print.html?exam=1&sets=2','print?exam=1&sets=2'),('public/',''),('index.php',''),('print/','print'),('offline.html','offline')]:
     with request(BASE+legacy) as response:assert response.status==200 and response.url==BASE+clean
     checks+=1
-expect('assets/vendor/qrcode.mjs?v=assessment8',contains=b'export default qrcode;')
+expect('assets/vendor/qrcode.mjs?v=ui9',contains=b'export default qrcode;')
 for private in ['config.php','config.example%20copy.php','app/schema.sql','storage/marioprovas.sqlite','README.md','.htaccess']:
     expect(private,status=403)
 

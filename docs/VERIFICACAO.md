@@ -1,5 +1,13 @@
 # Registro de verificação — atualizado em 11/11/2026
 
+## Interface e responsividade — versão ui9
+
+- CSS reorganizado com tokens compartilhados, base móvel, componentes/consultas ao container, campos de 16 px, controles de toque de 44 px, tabelas com rolagem localizada e cards para resultados. Menu com fechamento/foco/teclado, dialogs com viewport visual e áreas seguras, impressão e página offline revisados. APIs, banco e regras de negócio preservados.
+- **2.604 verificações Chrome + 2.495 WebKit aprovadas**, nas 11 larguras solicitadas (320–1920 px), alturas reduzidas e orientação horizontal. Incluem overflow/escala indevida, campos, toque, corte/sobreposição, limites de modal, teclado, filtros, formulários, estados do leitor e offline real no Chrome. Revisão óptica em vídeo controlado conferida, sem câmera física.
+- **51 testes ópticos, 54 verificações de integração, fluxo DOM, exportação no Chrome, 30 verificações Apache, migração em cópia e sintaxe aprovados.** Novos recursos `ui9`, PWA v9. Nenhuma dependência de produção adicionada.
+- Capturas móveis/desktop dos dois motores inspecionadas; informação pessoal removida apenas do DOM das capturas. Sem teste em hardware Android/iOS, notch/teclado reais, impressora ou publicação Hostinger. WebKit Windows não é Safari iOS físico.
+- Inventário completo, estratégia, comandos, evidências e limites em [RESPONSIVIDADE.md](RESPONSIVIDADE.md). As entradas seguintes registram versões anteriores.
+
 ## Gabarito, notas, filtros e exposição — versão assessment8
 
 - Branco, múltiplas e alternativas erradas passam a contar como **erros válidos**. A anulação é global, definida pelo professor, e **dá crédito a todos**, conforme a escolha do responsável. Acertos efetivos e créditos são exibidos separadamente; percentual = (acertos + créditos) / (válidas + créditos). Com todas as questões anuladas, todos recebem 100% e os pontos da faixa máxima. Anular/reverter não destrói as marcações originais.

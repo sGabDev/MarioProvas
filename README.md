@@ -11,6 +11,12 @@ Aplicação implementada do zero para organizar estudantes, criar simulados, imp
 
 Extensões necessárias: `pdo_sqlite`, `mbstring`, `session`, `json`. O diretório privado `storage/` deve permitir escrita ao PHP. `upload_max_filesize` deve aceitar 8 MB e `post_max_size` pelo menos 10 MB. `memory_limit` recomendado: 128 MB ou mais. Ative HTTPS antes de usar a câmera fora de localhost.
 
+## Interface responsiva — ui9
+
+CSS refatorado com tokens de cores/espaços/tipografia, base móvel, campos de 16 px, controles de pelo menos 44 px e áreas seguras. O menu móvel fecha por toque fora ou Escape, mantém o foco e tem botão de fechamento. Tabelas extensas rolam dentro do componente, com indicação visual e acesso por teclado; resultados individuais viram cards no telefone. Modais acompanham a viewport visual/teclado quando o navegador disponibiliza essa informação. Impressão/PNG preservam o SVG e o tamanho físico do cartão.
+
+Foram executadas matrizes no Chrome e WebKit, de 320 a 1920 px, além de alturas menores e orientação horizontal. **Isso não equivale a homologação em hardware Android/iOS.** Veja o inventário de arquivos, comandos e limites em [docs/RESPONSIVIDADE.md](docs/RESPONSIVIDADE.md). Não houve mudanças de API, banco ou regras de negócio nesta refatoração. Ao atualizar, preserve configuração/dados, recarregue com Ctrl+F5 e reabra a PWA para carregar `ui9`/cache v9.
+
 ## Executar no computador
 
 No PowerShell, dentro deste projeto:
@@ -44,7 +50,7 @@ Para atualizar uma instalação existente, faça backup e extraia `dist/MarioPro
 
 Depois do envio, a impressão abre em **`https://seu-dominio/print?exam=1&sets=2`**. Links anteriores com `/public/print.html` ou `/print.html` redirecionam para a rota limpa, conservando os parâmetros. `api.php`, scripts, imagens, manifesto e PWA continuam funcionando pela raiz. Consultas e gravações permanecem autenticadas. As regras usam `THE_REQUEST` para não redirecionar a reescrita interna e evitar ciclos; veja a [documentação de mod_rewrite do Apache](https://httpd.apache.org/docs/2.4/mod/mod_rewrite.html#rewritecond).
 
-Limpe o cache da hospedagem/CDN, se estiver ativo, e recarregue com **Ctrl+F5**; em PWA, feche e reabra. A versão dos recursos é `assessment8`. Se `/print` retornar 404, confira se os dois `.htaccess` foram enviados e se a reescrita de URL está habilitada no servidor. A mudança local só passa a valer no domínio depois que os arquivos forem enviados à hospedagem.
+Limpe o cache da hospedagem/CDN, se estiver ativo, e recarregue com **Ctrl+F5**; em PWA, feche e reabra. A versão dos recursos é `ui9`. Se `/print` retornar 404, confira se os dois `.htaccess` foram enviados e se a reescrita de URL está habilitada no servidor. A mudança local só passa a valer no domínio depois que os arquivos forem enviados à hospedagem.
 7. Teste sem autenticação: os endereços do CSV, `storage/`, `app/` e `config.php` devem retornar 403/404; a API não deve fornecer dados. Faça backup privado antes de colocar dados em uso.
 
 O caminho do banco pode ser alterado em `config.php`. O padrão é `storage/marioprovas.sqlite`. O banco usa WAL; a pasta inteira precisa ser gravável. Variáveis de ambiente `MARIOPROVAS_DB` e `MARIOPROVAS_SETUP_KEY`, quando definidas pelo operador, têm prioridade sobre `config.php`; isso também permite executar os testes em bancos isolados com uma configuração local existente.
@@ -106,7 +112,7 @@ Em **Ver resultados**, escolha **Série** e/ou **Turma**. O filtro vale para mé
 
 ### Atualizar uma instalação existente
 
-Faça backup privado e consistente do SQLite antes de enviar o pacote. Substitua os arquivos de código com `dist/MarioProvas-hostinger.zip`, preservando `config.php` e `storage/`. A migração para a versão 2 é automática na primeira consulta ao banco; não reinstale nem substitua o banco. Resultados antigos passam a contar brancos/múltiplas como erros válidos, com recálculo do percentual; marcas, cartões e cadastros são preservados. Notas ficam desativadas até você configurar as faixas. Recarregue com Ctrl+F5; a versão dos recursos é `assessment8` e o cache PWA é v8.
+Faça backup privado e consistente do SQLite antes de enviar o pacote. Substitua os arquivos de código com `dist/MarioProvas-hostinger.zip`, preservando `config.php` e `storage/`. A migração para a versão 2 é automática na primeira consulta ao banco; não reinstale nem substitua o banco. Resultados antigos passam a contar brancos/múltiplas como erros válidos, com recálculo do percentual; marcas, cartões e cadastros são preservados. Notas ficam desativadas até você configurar as faixas. Recarregue com Ctrl+F5; a versão dos recursos é `ui9` e o cache PWA é v9.
 
 ## Cartão compacto e PNG para a capa
 
@@ -144,7 +150,7 @@ Após atualizar os arquivos, use **Ctrl + F5** no computador. Recursos do leitor
 
 As imagens ficam na memória do dispositivo durante a leitura, não são enviadas nem armazenadas no servidor. São persistidas as medições de preenchimento por alternativa, o responsável pela leitura, a data e as respostas classificadas. Os parâmetros de qualidade não são prova criptográfica de captura: o professor autenticado continua responsável pela associação e conferência.
 
-**Atualização assessment8:** feche a tela de impressão/leitura e recarregue o site (Ctrl+F5 no computador) para carregar o gerador QR e os links atualizados. Baixe novamente o PNG para obter a apresentação limpa. Cartões anteriores continuam aceitos, sem reimpressão obrigatória. O contorno verde indica alinhamento aceito; âmbar indica que o cartão foi alinhado, mas as marcações precisam de nova captura. Se aparecer “bolhas pequenas demais”, aproxime o cartão preservando os quatro quadrados ou selecione uma câmera com resolução maior. Se houver preenchimento ambíguo, confira as questões indicadas. Uma captura rejeitada permanece sem resultado salvo.
+**Atualização ui9:** feche a tela de impressão/leitura e recarregue o site (Ctrl+F5 no computador) para carregar o gerador QR e os links atualizados. Baixe novamente o PNG para obter a apresentação limpa. Cartões anteriores continuam aceitos, sem reimpressão obrigatória. O contorno verde indica alinhamento aceito; âmbar indica que o cartão foi alinhado, mas as marcações precisam de nova captura. Se aparecer “bolhas pequenas demais”, aproxime o cartão preservando os quatro quadrados ou selecione uma câmera com resolução maior. Se houver preenchimento ambíguo, confira as questões indicadas. Uma captura rejeitada permanece sem resultado salvo.
 
 ## Resultados e relatórios
 

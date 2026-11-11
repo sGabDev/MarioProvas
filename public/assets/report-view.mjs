@@ -1,4 +1,4 @@
-import {escapeHtml as esc} from './layout.mjs?v=assessment8';
+import {escapeHtml as esc} from './layout.mjs?v=ui9';
 const num=n=>n===null||n===undefined?'—':Number(n).toLocaleString('pt-BR',{maximumFractionDigits:2});
 const pct=n=>n===null||n===undefined?'—':num(n)+'%';
 const name=s=>s.social_name||s.name;

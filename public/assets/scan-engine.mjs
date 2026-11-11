@@ -1,12 +1,12 @@
-import {decodeQr} from './qr.mjs?v=assessment8';
-import {readCard} from './omr.mjs?v=assessment8';
+import {decodeQr} from './qr.mjs?v=ui9';
+import {readCard} from './omr.mjs?v=ui9';
 
 export function createScanEngine(){
     let worker=null,pending=new Map(),serial=0,lastImage=null,lastQr=null,disposed=false;
     const stopWorker=()=>{worker?.terminate();worker=null;for(const task of pending.values()){clearTimeout(task.timer);task.reject(Error('Processamento reiniciado.'));}pending.clear();};
     if(typeof Worker!=='undefined'){
         try{
-            worker=new Worker(new URL('./scan-worker.mjs?v=assessment8',import.meta.url),{type:'module'});
+            worker=new Worker(new URL('./scan-worker.mjs?v=ui9',import.meta.url),{type:'module'});
             worker.onmessage=event=>{const task=pending.get(event.data.id);if(!task)return;pending.delete(event.data.id);clearTimeout(task.timer);if(event.data.error){const e=Error(event.data.error.message);e.code=event.data.error.code;e.details=event.data.error.details;task.reject(e);}else task.resolve(event.data.value);};
             worker.onerror=()=>stopWorker();
         }catch{worker=null;}

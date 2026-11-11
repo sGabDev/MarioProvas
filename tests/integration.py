@@ -179,6 +179,17 @@ try:
         try:urllib.request.urlopen(BASE+path);raise AssertionError('Arquivo privado exposto')
         except urllib.error.HTTPError as error:assert error.code==404
     check(True,'document root público não expõe CSV, configuração nem banco')
+    # Sessão opcional para iterar QA de interface no mesmo banco descartável.
+    # O arquivo contém somente credenciais efêmeras desta base de teste.
+    qa_session=os.environ.get('MARIOPROVAS_QA_SESSION')
+    if qa_session:
+        qa_path=pathlib.Path(qa_session).resolve()
+        assert qa_path.parent==pathlib.Path(tempfile.gettempdir()).resolve() and qa_path.name.startswith('marioprovas-qa-')
+        qa_path.write_text(json.dumps({k:v for k,v in print_env.items() if k.startswith('MARIOPROVAS_TEST_')}),encoding='utf-8')
+        print('QA isolado disponível; remova o arquivo de sessão temporária para concluir.')
+        while qa_path.exists():time.sleep(.5)
+    if os.environ.get('MARIOPROVAS_RESPONSIVE')=='1':
+        subprocess.run(['node','tests/responsive-browser.mjs'],cwd=ROOT,env=print_env,check=True,timeout=360)
     c.call('logout',{});c.call('dashboard',expected=401)
     check(CSV is None or hashlib.sha256(CSV.read_bytes()).hexdigest()==original_hash,'fonte escolar preservada; testes exclusivamente em banco isolado')
     print(f'Concluído: {len(passed)} verificações de integração. Nenhum dado gravado na base da aplicação.')

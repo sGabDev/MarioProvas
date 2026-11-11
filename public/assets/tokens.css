@@ -1,0 +1,49 @@
+/* MarioProvas: identidade, ritmo e medidas compartilhadas. */
+:root {
+  color-scheme: light;
+  --ink: #18332e;
+  --muted: #52665d;
+  --paper: #f5f6f2;
+  --surface: #fff;
+  --surface-soft: #edf2e7;
+  --line: #dce3d8;
+  --green: #254e40;
+  --green-dark: #142b28;
+  --lime: #dbef9b;
+  --red: #9b3834;
+  --amber: #805713;
+  --focus: #477958;
+  --space-1: .25rem;
+  --space-2: .5rem;
+  --space-3: .75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --text-xs: .75rem;
+  --text-sm: .875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-title: clamp(1.5rem, 1.2rem + 1vw, 2.125rem);
+  --radius-sm: .5rem;
+  --radius: 1rem;
+  --radius-lg: 1.25rem;
+  --shadow-sm: 0 2px 8px #18332e08;
+  --shadow-dialog: 0 24px 80px #102c2940;
+  --touch: 2.75rem;
+  --sidebar-width: 15rem;
+  --content-width: 100rem;
+  --gutter: clamp(1rem, 2.5vw, 2.5rem);
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --viewport-height: 100vh;
+  font-family: Inter, "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-synthesis: none;
+  color: var(--ink);
+  background: var(--paper);
+}
+@supports (height: 100svh) { :root { --viewport-height: 100svh; } }
+@supports (height: 100dvh) { :root { --viewport-height: 100dvh; } }

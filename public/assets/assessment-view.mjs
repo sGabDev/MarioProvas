@@ -1,4 +1,4 @@
-import {escapeHtml as esc} from './layout.mjs?v=assessment8';
+import {escapeHtml as esc} from './layout.mjs?v=ui9';
 const modeField=exam=>`<input id="annulment-mode" type="hidden" value="credit"><p class="note">Ao anular uma questão, todos recebem o ponto dela como crédito. Respostas erradas, em branco ou com múltiplas marcas continuam sendo incorretas e válidas.</p>`;
 export function assessmentActions(exam){
     const policy=exam.grading_policy;

@@ -1,6 +1,6 @@
-import {findFiducials} from './fiducials.mjs?v=assessment8';
-import {normalizeIllumination} from './illumination.mjs?v=assessment8';
-import { LAYOUT, QR_LAYOUTS, compactLayout, bubblePosition } from './layout.mjs?v=assessment8';
+import {findFiducials} from './fiducials.mjs?v=ui9';
+import {normalizeIllumination} from './illumination.mjs?v=ui9';
+import { LAYOUT, QR_LAYOUTS, compactLayout, bubblePosition } from './layout.mjs?v=ui9';
 export class ReadError extends Error {
     constructor(code, message, details = {}) {
         super(message);
