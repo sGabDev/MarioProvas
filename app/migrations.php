@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 function migrate(PDO $db): void {
-    if ((int)$db->query('PRAGMA user_version')->fetchColumn() >= 2) return;
+    if ((int)$db->query('PRAGMA user_version')->fetchColumn() >= 3) return;
     $db->exec('BEGIN IMMEDIATE');
     try {
         if ((int)$db->query('PRAGMA user_version')->fetchColumn() < 1) {
@@ -45,6 +45,18 @@ function migrate(PDO $db): void {
             $db->exec("UPDATE results SET correct=(SELECT COUNT(*) FROM responses rp WHERE rp.result_id=results.id AND rp.status='correct'), valid=(SELECT COUNT(*) FROM responses rp WHERE rp.result_id=results.id),annulled=0,credited=0 WHERE EXISTS(SELECT 1 FROM responses rp WHERE rp.result_id=results.id)");
             $db->exec('UPDATE results SET percentage=CASE WHEN valid>0 THEN ROUND(100.0*correct/valid,2) ELSE NULL END');
             $db->exec('PRAGMA user_version=2');
+        }
+        if ((int)$db->query('PRAGMA user_version')->fetchColumn() < 3) {
+            $db->exec("CREATE TABLE IF NOT EXISTS question_bank(id INTEGER PRIMARY KEY,school_id INTEGER NOT NULL REFERENCES schools(id),statement TEXT NOT NULL,options TEXT NOT NULL,answer TEXT NOT NULL,discipline TEXT NOT NULL,area TEXT NOT NULL,subject TEXT NOT NULL,difficulty TEXT NOT NULL CHECK(difficulty IN ('easy','medium','hard')),revision INTEGER NOT NULL DEFAULT 1,archived INTEGER NOT NULL DEFAULT 0,created_by INTEGER NOT NULL REFERENCES users(id),updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
+            $db->exec('CREATE INDEX IF NOT EXISTS bank_school ON question_bank(school_id,archived,discipline,area,subject,difficulty)');
+            if(!in_array('duration',array_column($db->query('PRAGMA table_info(exams)')->fetchAll(),'name'),true))$db->exec('ALTER TABLE exams ADD COLUMN duration INTEGER');
+            if(!in_array('discipline',array_column($db->query('PRAGMA table_info(questions)')->fetchAll(),'name'),true))$db->exec("ALTER TABLE questions ADD COLUMN discipline TEXT NOT NULL DEFAULT ''");
+            $db->exec('CREATE TABLE IF NOT EXISTS question_snapshots(question_id INTEGER PRIMARY KEY REFERENCES questions(id),source_id INTEGER REFERENCES question_bank(id),source_revision INTEGER NOT NULL,statement TEXT NOT NULL,options TEXT NOT NULL,area TEXT NOT NULL,subject TEXT NOT NULL,difficulty TEXT NOT NULL,fixed_position INTEGER NOT NULL DEFAULT 0,fixed_options TEXT NOT NULL)');
+            $db->exec('CREATE TABLE IF NOT EXISTS exam_versions(id INTEGER PRIMARY KEY,exam_id INTEGER NOT NULL REFERENCES exams(id),label TEXT NOT NULL,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,UNIQUE(exam_id,label))');
+            $db->exec('CREATE TABLE IF NOT EXISTS version_questions(version_id INTEGER NOT NULL REFERENCES exam_versions(id),position INTEGER NOT NULL,question_id INTEGER NOT NULL REFERENCES questions(id),choice_order TEXT NOT NULL,PRIMARY KEY(version_id,position),UNIQUE(version_id,question_id))');
+            if(!in_array('version_id',array_column($db->query('PRAGMA table_info(booklets)')->fetchAll(),'name'),true))$db->exec('ALTER TABLE booklets ADD COLUMN version_id INTEGER REFERENCES exam_versions(id)');
+            $db->exec('CREATE UNIQUE INDEX IF NOT EXISTS version_template ON booklets(version_id) WHERE reusable=1 AND template_id IS NULL');
+            $db->exec('PRAGMA user_version=3');
         }
         $db->exec('COMMIT');
     } catch (Throwable $e) { $db->exec('ROLLBACK'); throw $e; }

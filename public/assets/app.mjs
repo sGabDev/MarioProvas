@@ -1,11 +1,12 @@
 import {initializeUi,setupNavigation,describeModal} from './ui.mjs?v=ui9';
-import {assessmentActions,openKeyEditor,openGradingEditor} from './assessment-view.mjs?v=ui9';
-import {renderReport,individualHtml} from './report-view.mjs?v=ui9';
+import {assessmentActions,openKeyEditor,openGradingEditor} from './assessment-view.mjs?v=bank1';
+import {renderReport,individualHtml} from './report-view.mjs?v=bank1';
 const reportFilters=new Map();
-import {cardManagement} from './cards-view.mjs?v=ui9';
+import {cardManagement} from './cards-view.mjs?v=bank1';
 import {buildAudience} from './audience.mjs';
+import {bankView,composeView,versionPanel,bindVersionPanel} from './bank-view.mjs?v=bank1';
 import { escapeHtml as esc } from './layout.mjs?v=ui9';
-import { openScanner, stopScanner } from './scanner.mjs?v=ui9';
+import { openScanner, stopScanner } from './scanner.mjs?v=bank1';
 const $ = (s, root = document) => root.querySelector(s),
     $$ = (s, root = document) => [...root.querySelectorAll(s)];
 let state = {},
@@ -117,13 +118,15 @@ function shell(active) {
         `<div class="shell"><aside class="sidebar" id="navigation" aria-label="Navegação principal"><div class="sidebar-brand"><a class="brand" href="#home"><img src="assets/icon.svg" alt="">MarioProvas</a><button class="quiet" id="close-menu" type="button" aria-label="Fechar menu">${icon('close')}</button></div><div class="nav-label">Espaço do professor</div><nav aria-label="Principal">${[
             ['home', 'Visão geral', 'home'],
             ['exams', 'Simulados', 'exam'],
+            ['bank', 'Banco de questões', 'book'],
+            ['compose', 'Montar prova', 'plus'],
             ['classes', 'Turmas e estudantes', 'users'],
             ['reports', 'Relatórios', 'chart'],
         ]
             .map(([r, l, i]) => `<a class="nav-item ${active === r ? 'active' : ''}" href="#${r}">${icon(i)}${l}</a>`)
             .join(
                 '',
-            )}<div class="nav-label">Organização</div><a class="nav-item ${active === 'import' ? 'active' : ''}" href="#import">${icon('upload')}Importar estudantes</a>${state.user.role === 'admin' ? `<a class="nav-item ${active === 'team' ? 'active' : ''}" href="#team">${icon('shield')}Equipe da escola</a>` : ''}<a class="nav-item ${active === 'help' ? 'active' : ''}" href="#help">${icon('book')}Como usar</a></nav><div class="sidebar-foot"><p><span class="online-dot"></span>Dados salvos no servidor</p><strong>${esc(dash?.school || 'Ambiente escolar')}</strong><p>Conhecer para ensinar melhor.</p></div></aside><button class="nav-backdrop" id="nav-backdrop" type="button" aria-label="Fechar menu" tabindex="-1" hidden></button><div class="workspace"><header class="topbar"><button class="quiet mobile-menu" id="menu" aria-label="Abrir ou fechar navegação" aria-expanded="false" aria-controls="navigation">${icon('menu')}</button><span class="breadcrumb">Escola / <strong>${{ home: 'Visão geral', exams: 'Simulados', classes: 'Turmas', reports: 'Relatórios', import: 'Importação', team: 'Equipe', help: 'Ajuda' }[active] || 'Simulado'}</strong></span><div class="account"><div class="avatar">${esc(state.user.name.slice(0, 1).toUpperCase())}</div><span>${esc(state.user.name)}</span><button id="logout" class="quiet" aria-label="Sair da conta">${icon('logout')}</button></div></header><main class="main" id="main" tabindex="-1"><div class="loading">Carregando…</div></main></div></div>`;
+            )}<div class="nav-label">Organização</div><a class="nav-item ${active === 'import' ? 'active' : ''}" href="#import">${icon('upload')}Importar estudantes</a>${state.user.role === 'admin' ? `<a class="nav-item ${active === 'team' ? 'active' : ''}" href="#team">${icon('shield')}Equipe da escola</a>` : ''}<a class="nav-item ${active === 'help' ? 'active' : ''}" href="#help">${icon('book')}Como usar</a></nav><div class="sidebar-foot"><p><span class="online-dot"></span>Dados salvos no servidor</p><strong>${esc(dash?.school || 'Ambiente escolar')}</strong><p>Conhecer para ensinar melhor.</p></div></aside><button class="nav-backdrop" id="nav-backdrop" type="button" aria-label="Fechar menu" tabindex="-1" hidden></button><div class="workspace"><header class="topbar"><button class="quiet mobile-menu" id="menu" aria-label="Abrir ou fechar navegação" aria-expanded="false" aria-controls="navigation">${icon('menu')}</button><span class="breadcrumb">Escola / <strong>${{ home: 'Visão geral', exams: 'Simulados', bank: 'Banco de questões', compose: 'Montar prova', classes: 'Turmas', reports: 'Relatórios', import: 'Importação', team: 'Equipe', help: 'Ajuda' }[active] || 'Simulado'}</strong></span><div class="account"><div class="avatar">${esc(state.user.name.slice(0, 1).toUpperCase())}</div><span>${esc(state.user.name)}</span><button id="logout" class="quiet" aria-label="Sair da conta">${icon('logout')}</button></div></header><main class="main" id="main" tabindex="-1"><div class="loading">Carregando…</div></main></div></div>`;
     setupNavigation();
     $('#logout').onclick = async () => {
         stopScanner();
@@ -178,6 +181,12 @@ async function route() {
         dash = await api('dashboard');
         if (version !== routeVersion) return;
         switch (view) {
+            case 'bank':
+                await bankView({root:$('#main'),api,toast,openModal});
+                break;
+            case 'compose':
+                await composeView({root:$('#main'),api,toast,openModal,classes:dash.classes});
+                break;
             case 'home':
                 home();
                 break;
@@ -536,8 +545,12 @@ async function examView(id, startScan = false) {
             `${e.class_name} · ${dateFmt(e.date)} · ${e.questions.length} questões · A–${String.fromCharCode(64 + e.alternatives)}`,
             `<a class="button secondary" href="#reports/${id}">${icon('chart')}Ver resultados</a><button id="scan">${icon('scan')}Ler cartões</button>`,
         ) +
-        `<div class="stats">${stat('Participantes', e.students.length, 'Incluídos na avaliação', 'users')}${stat('Áreas', e.areas.length, 'Quantidades independentes', 'book')}${stat('Resultados', completed, `${e.students.length - completed} aguardando correção`, 'check')}${stat('Modelos / cartões', e.booklets.length, `${Math.ceil(e.questions.length / 60)} folha(s) por conjunto`, 'print')}</div><div class="grid-two"><div>${cardManagement(e, icon)}<section class="card"><div class="card-header"><h2>Participantes e resultados</h2></div><div class="table-wrap"><table><thead><tr><th>Estudante / turma</th><th>Identificador</th><th>Resultado</th></tr></thead><tbody>${e.students.map((s) => `<tr><td>${esc(displayName(s))}<small>${esc(s.class_name)}</small></td><td>${esc(s.external_id)}</td><td>${s.result_id ? `<button class="quiet" data-result="${s.result_id}">Ver correção ${icon('arrow')}</button>` : `<span class="badge warn">${s.booklet_id ? 'Leitura parcial' : 'Pendente'}</span>`}</td></tr>`).join('')}</tbody></table></div></section></div><aside><section class="card"><div class="card-header"><h2>Áreas e gabarito</h2>${icon('exam')}</div>${e.areas.map((a) => `<div class="bar-label area-summary"><span>${esc(a.name)}</span><strong>${a.count} questões</strong></div>`).join('')}<details class="space-before"><summary class="link small">Conferir gabarito</summary><div class="report-questions space-before">${e.questions.map((q) => `<div class="question-chip"><strong>${q.number} · ${q.annulled?'Anulada':q.answer}</strong><small>${esc(q.area)}</small></div>`).join('')}</div></details>${assessmentActions(e)}</section><section class="card"><h3>Para uma leitura confiável</h3><p class="small muted">Use uma folha plana, boa iluminação e caneta de cor nítida. Enquadre as quatro marcas. Questões em branco ou com múltiplas marcações contam como incorretas. Só você pode anular uma questão para todos.</p><p class="small muted">O acesso à câmera só é solicitado depois de você tocar em “Ativar câmera”.</p></section></aside></div>`;
+        `<div class="stats">${stat('Participantes', e.students.length, 'Incluídos na avaliação', 'users')}${stat('Áreas', e.areas.length, 'Quantidades independentes', 'book')}${stat('Resultados', completed, `${e.students.length - completed} aguardando correção`, 'check')}${stat('Modelos / cartões', e.booklets.length, `${Math.ceil(e.questions.length / 60)} folha(s) por conjunto`, 'print')}</div><div class="grid-two"><div>${cardManagement(e, icon)}<section class="card"><div class="card-header"><h2>Participantes e resultados</h2></div><div class="table-wrap"><table><thead><tr><th>Estudante / turma</th><th>Identificador</th><th>Resultado</th></tr></thead><tbody>${e.students.map((s) => `<tr><td>${esc(displayName(s))}<small>${esc(s.class_name)}</small></td><td>${esc(s.external_id)}</td><td>${s.result_id ? `<button class="quiet" data-result="${s.result_id}">Ver correção ${icon('arrow')}</button>` : `<span class="badge warn">${s.booklet_id ? 'Leitura parcial' : 'Pendente'}</span>`}</td></tr>`).join('')}</tbody></table></div></section></div><aside><section class="card"><div class="card-header"><h2>${e.versions?.length?'Gabarito de referência':'Áreas e gabarito'}</h2>${icon('exam')}</div>${e.areas.map((a) => `<div class="bar-label area-summary"><span>${esc(a.name)}</span><strong>${a.count} questões</strong></div>`).join('')}<details class="space-before"><summary class="link small">${e.versions?.length?'Conferir ordem original da seleção':'Conferir gabarito'}</summary><div class="report-questions space-before">${e.questions.map((q) => `<div class="question-chip"><strong>${q.number} · ${q.annulled?'Anulada':q.answer}</strong><small>${esc(q.area)}</small></div>`).join('')}</div></details>${assessmentActions(e)}</section><section class="card"><h3>Para uma leitura confiável</h3><p class="small muted">Use uma folha plana, boa iluminação e caneta de cor nítida. Enquadre as quatro marcas. Questões em branco ou com múltiplas marcações contam como incorretas. Só você pode anular uma questão para todos.</p><p class="small muted">O acesso à câmera só é solicitado depois de você tocar em “Ativar câmera”.</p></section></aside></div>`;
     const assessmentUi={api,toast,openModal,onSaved:async()=>{dash=null;await examView(id);}};
+    if(e.versions?.length){
+        const panel=document.createElement('div');panel.innerHTML=versionPanel(e);$('.stats').after(panel);
+        bindVersionPanel(e,assessmentUi);
+    }
     $('#edit-key').onclick=()=>openKeyEditor(e,assessmentUi);
     $('#edit-grading').onclick=()=>openGradingEditor(e,assessmentUi);
     $('#generate').onsubmit = async (ev) => {

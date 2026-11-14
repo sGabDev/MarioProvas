@@ -49,7 +49,7 @@ function identify_card(string $token, int $examId): array
 {
     $e = exam($examId);
     $u = require_user();
-    $c = one('SELECT c.*,b.exam_id,b.student_id,b.id booklet,b.reusable,b.template_id,e.school_id FROM cards c JOIN booklets b ON b.id=c.booklet_id JOIN exams e ON e.id=b.exam_id WHERE c.token=? AND e.school_id=?', [$token, $u['school_id']]);
+    $c = one('SELECT c.*,b.exam_id,b.student_id,b.id booklet,b.reusable,b.template_id,b.version_id,v.label version_label,e.school_id FROM cards c JOIN booklets b ON b.id=c.booklet_id JOIN exams e ON e.id=b.exam_id LEFT JOIN exam_versions v ON v.id=b.version_id WHERE c.token=? AND e.school_id=?', [$token, $u['school_id']]);
     if (!$c)
         fail('QR desconhecido. O cartão não foi identificado.', 404);
     if ((int) $c['exam_id'] !== $examId)
@@ -79,7 +79,7 @@ function save_scan(int $examId, string $token, int $studentId, array $scores, ar
             if ($attempt && (int)$attempt['template_id'] !== $templateId)
                 fail('Este estudante iniciou outro conjunto. Use o modelo correspondente para concluir as páginas.', 409);
             if (!$attempt) {
-                query('INSERT INTO booklets(exam_id,student_id,template_id) VALUES(?,?,?)', [$examId, $studentId, $templateId]);
+                query('INSERT INTO booklets(exam_id,student_id,template_id,version_id) VALUES(?,?,?,?)', [$examId, $studentId, $templateId, $c['version_id']]);
                 $attempt = ['id'=>(int)db()->lastInsertId()];
                 foreach(rows('SELECT page,start_number,question_count FROM cards WHERE booklet_id=? ORDER BY page',[$templateId]) as $page) {
                     // As medições de cada estudante têm seus próprios registros;
@@ -104,6 +104,7 @@ function save_scan(int $examId, string $token, int $studentId, array $scores, ar
         $marks = [];
         foreach ($cards as $page)
             $marks = array_merge($marks, marks_from_scores(json_decode($page['scores'], true), (int) $e['alternatives']));
+        $marks = canonical_version_marks($examId,(int)$c['booklet'],$marks);
         $qs = rows('SELECT * FROM questions WHERE exam_id=? ORDER BY number', [$examId]);
         $r = calculate_result($qs, $marks,$e['annulment_mode']);
         $grade=grade_breakdown($e,$qs,$r['responses'])['total'];

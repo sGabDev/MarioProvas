@@ -278,3 +278,17 @@ dialog::backdrop { background: #102c29a6; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0s !important; animation-duration: 0s !important; animation-iteration-count: 1 !important; }
 }
+/* Banco e montagem seguem os mesmos componentes e tokens da aplicação. */
+.bank-list-item,.bank-selected{padding:16px 0;border-bottom:1px solid var(--border,#dce5e0)}
+.bank-list-item summary{cursor:pointer}
+.bank-list-item .check-row{display:inline-flex}
+.bank-question{padding:16px 0;border-bottom:1px solid var(--border,#dce5e0);overflow-wrap:anywhere}
+.question-text{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6}
+.question-options{padding-left:28px}
+.question-options li{padding-left:6px;margin:8px 0}
+.bank-selected fieldset{margin:8px 0}
+.bank-selected .actions strong{flex:1 1 200px}
+.bank-filters{margin-bottom:16px}
+textarea{font:inherit;width:100%;max-width:100%;padding:12px;border:1px solid var(--border,#cbd8d0);border-radius:8px;resize:vertical;min-height:80px}
+fieldset{min-width:0;border:1px solid var(--border,#dce5e0);border-radius:8px;padding:12px;margin:16px 0}
+legend{padding:0 6px;font-weight:600}

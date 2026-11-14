@@ -27,6 +27,7 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .sheet { inline-size: var(--card-width); max-inline-size: 100%; block-size: auto; margin-inline: auto; background: white; box-shadow: var(--shadow-sm); }
 .sheet svg { inline-size: 100%; block-size: auto; display: block; }
 .card-size { font-size: var(--text-sm); color: var(--muted); text-align: center; margin: 1.5rem 0 0; }
+.printed-version { font-size: 10pt; font-weight: 650; line-height: 1.2; margin: 0 0 3mm; color: var(--ink); }
 :where(select, button, a):focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
 @media (min-width: 48rem) {
   .print-toolbar { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; align-items: end; }

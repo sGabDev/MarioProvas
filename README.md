@@ -1,5 +1,21 @@
 # MarioProvas
 
+## Banco de questões e provas com versões
+
+O menu agora inclui **Banco de questões** e **Montar prova**. É possível
+cadastrar enunciados e alternativas, pesquisar por classificação, selecionar
+questões manual ou automaticamente, conferir as versões A–Z e baixar provas
+em PDF com uma ou duas colunas. Cada versão tem gabarito e cartão próprios; a
+câmera identifica a versão pelo QR antes da confirmação da leitura. O conteúdo
+das provas finalizadas é preservado quando o banco é editado.
+
+Veja o [guia de criação, impressão e correção por versão](docs/PROVAS-E-VERSOES.md)
+para o passo a passo, posições fixas, resultados e testes. A migração v3 é
+automática e preserva os dados existentes. Atualize os arquivos completos,
+incluindo `app/vendor/tfpdf/`, e use Ctrl+F5. O fluxo anterior de simulados por
+gabarito continua disponível em **Novo simulado**; as instruções anteriores
+abaixo continuam válidas para esse fluxo.
+
 Aplicação implementada do zero para organizar estudantes, criar simulados, imprimir cartões, reconhecer **marcações no papel** e acompanhar resultados. Os dados ficam em SQLite no servidor. Não há estudantes, provas ou resultados de demonstração na base da aplicação.
 
 ## Tecnologias e requisitos

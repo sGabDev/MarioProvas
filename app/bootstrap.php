@@ -49,7 +49,12 @@ function exam_detail(int $id): array {
     $e['students']=rows('SELECT s.*,ec.name class_name,en.class_id enrollment_class_id,r.id result_id,b.id booklet_id,b.template_id FROM enrollments en JOIN students s ON s.id=en.student_id JOIN classes ec ON ec.id=en.class_id LEFT JOIN results r ON r.student_id=s.id AND r.exam_id=en.exam_id LEFT JOIN booklets b ON b.student_id=s.id AND b.exam_id=en.exam_id WHERE en.exam_id=? ORDER BY ec.name,s.name',[$id]);
     $pages=rows('SELECT b.student_id,c.page FROM booklets b JOIN cards c ON c.booklet_id=b.id WHERE b.exam_id=? AND b.student_id IS NOT NULL AND c.scanned_at IS NOT NULL',[$id]);
     foreach($e['students'] as &$s) $s['scanned_pages']=array_column(array_filter($pages,fn($p)=>$p['student_id']===$s['id']),'page');unset($s);
-    $e['booklets']=rows('SELECT b.id,b.student_id,b.reusable,COUNT(c.id) pages,SUM(c.scanned_at IS NOT NULL) scanned,(SELECT COUNT(*) FROM booklets x WHERE x.template_id=b.id) uses,(SELECT COUNT(*) FROM results r JOIN booklets x ON x.id=r.booklet_id WHERE x.template_id=b.id) completed FROM booklets b JOIN cards c ON c.booklet_id=b.id WHERE b.exam_id=? AND b.template_id IS NULL GROUP BY b.id ORDER BY b.id',[$id]);
+    $e['booklets']=rows('SELECT b.id,b.student_id,b.reusable,b.version_id,v.label version_label,COUNT(c.id) pages,SUM(c.scanned_at IS NOT NULL) scanned,(SELECT COUNT(*) FROM booklets x WHERE x.template_id=b.id) uses,(SELECT COUNT(*) FROM results r JOIN booklets x ON x.id=r.booklet_id WHERE x.template_id=b.id) completed FROM booklets b JOIN cards c ON c.booklet_id=b.id LEFT JOIN exam_versions v ON v.id=b.version_id WHERE b.exam_id=? AND b.template_id IS NULL GROUP BY b.id ORDER BY b.id',[$id]);
+    $e['versions']=rows('SELECT v.*,b.id booklet_id FROM exam_versions v JOIN booklets b ON b.version_id=v.id AND b.reusable=1 AND b.template_id IS NULL WHERE v.exam_id=? ORDER BY v.label',[$id]);
+    if($e['versions']){
+        $snapshots=array_column(rows('SELECT s.* FROM question_snapshots s JOIN questions q ON q.id=s.question_id WHERE q.exam_id=?',[$id]),null,'question_id');
+        foreach($e['questions'] as &$q){$q['statement']=$snapshots[$q['id']]['statement'];$q['options']=json_decode($snapshots[$q['id']]['options'],true);}unset($q);
+    }
     return $e;
 }
 function start_session(): void {

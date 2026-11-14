@@ -1,4 +1,4 @@
-import {cardSvg,compactLayout,LAYOUT} from './layout.mjs?v=ui9';
+import {cardSvg,compactLayout,LAYOUT,escapeHtml as esc} from './layout.mjs?v=ui9';
 import {cardPng} from './png-export.mjs?v=ui9';
 import qrFactory from './vendor/qrcode.mjs?v=ui9';
 const $=selector=>document.querySelector(selector);
@@ -15,12 +15,12 @@ function render(){
         const svg=cardSvg({...card,layoutVersion:compact?3:2},exam,questions,qrFactory);
         const item=document.createElement('article');item.className='print-card';
         const size=`${(layout.widthMm/10).toLocaleString('pt-BR',{maximumFractionDigits:2})} × ${(layout.heightMm/10).toLocaleString('pt-BR',{maximumFractionDigits:2})} cm`;
-        item.innerHTML=`<div class="card-tools"><div><h2>Bloco ${card.page} · questões ${card.start_number}–${card.start_number+card.question_count-1}</h2><p>${size} · ${card.question_count} questões · ${exam.alternatives} alternativas</p></div><button type="button" class="download-png">Baixar PNG</button></div><section class="sheet" style="--card-width:${layout.widthMm}mm;--card-height:${layout.heightMm}mm">${svg}</section><p class="card-size">Na capa: insira com largura de <strong>${(layout.widthMm/10).toLocaleString('pt-BR',{maximumFractionDigits:2})} cm</strong>, mantendo a proporção e todo o fundo branco.</p>`;
+        item.innerHTML=`<div class="card-tools"><div><h2>${card.version_label?`Versão ${esc(card.version_label)} · `:``}Bloco ${card.page} · questões ${card.start_number}–${card.start_number+card.question_count-1}</h2><p>${size} · ${card.question_count} questões · ${exam.alternatives} alternativas</p></div><button type="button" class="download-png">Baixar PNG</button></div>${card.version_label?`<p class="printed-version">Versão ${esc(card.version_label)} · Bloco ${card.page}</p>`:``}<section class="sheet" style="--card-width:${layout.widthMm}mm;--card-height:${layout.heightMm}mm">${svg}</section><p class="card-size">Na capa: insira com largura de <strong>${(layout.widthMm/10).toLocaleString('pt-BR',{maximumFractionDigits:2})} cm</strong>, mantendo a proporção e todo o fundo branco.</p>`;
         item.querySelector('.download-png').onclick=async event=>{
             const button=event.currentTarget;button.disabled=true;button.textContent='Preparando PNG…';
             try{
                 const dpi=Number($('#resolution').value),blob=await cardPng(svg,layout,dpi),url=URL.createObjectURL(blob),link=document.createElement('a');
-                link.href=url;link.download=`MarioProvas-simulado-${exam.id}-modelo-${card.booklet_id}-bloco-${card.page}-${compact?'compacto':'A4'}-${dpi}dpi.png`;
+                link.href=url;link.download=`MarioProvas-simulado-${exam.id}-modelo-${card.booklet_id}${card.version_label?`-versao-${card.version_label}`:``}-bloco-${card.page}-${compact?'compacto':'A4'}-${dpi}dpi.png`;
                 document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
                 $('#status').textContent=`PNG do bloco ${card.page} pronto. Use ${size} na capa para preservar bolhas e QR.`;
             }catch(error){$('#status').textContent=error.message;}

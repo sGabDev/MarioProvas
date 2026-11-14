@@ -5,12 +5,13 @@ require dirname(__DIR__).'/app/import.php';
 require dirname(__DIR__).'/app/grading.php';
 require dirname(__DIR__).'/app/assessment.php';
 require dirname(__DIR__).'/app/reports.php';
+require dirname(__DIR__).'/app/question-bank.php';
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, private');header('X-Content-Type-Options: nosniff');header('Referrer-Policy: same-origin');
 start_session();
 try {
     $action=$_GET['action']??'state';$method=$_SERVER['REQUEST_METHOD'];
-    $write=['login','logout','setup','upload','preview','import','student_update','class_update','create_exam','generate_cards','scan','team_create','update_key','update_grading'];
+    $write=['login','logout','setup','upload','preview','import','student_update','class_update','create_exam','generate_cards','scan','team_create','update_key','update_grading','bank_save','bank_archive','prepare_bank_exam','finalize_bank_exam','add_versions'];
     if(in_array($action,$write,true)){
         if($method!=='POST')fail('Método não permitido.',405);
         if(!hash_equals($_SESSION['csrf'],$_SERVER['HTTP_X_CSRF_TOKEN']??''))fail('Sessão expirada. Atualize a página.',403);
@@ -34,6 +35,15 @@ try {
     } else {
         $u=require_user();$school=(int)$u['school_id'];
         switch($action){
+            case 'bank_list':$out=bank_list($_GET);break;
+            case 'bank_question':$out=bank_question((int)($_GET['id']??0));break;
+            case 'bank_save':$out=bank_save($body);break;
+            case 'bank_archive':$out=transaction(function()use($body){$q=bank_question((int)($body['id']??0));if((int)($body['revision']??0)!==(int)$q['revision'])fail('Questão alterada. Reabra a lista.',409);query('UPDATE question_bank SET archived=1,revision=revision+1 WHERE id=?',[$q['id']]);audit('bank.archived',(int)$q['id']);return ['message'=>'Questão arquivada. Provas existentes foram preservadas.'];});break;
+            case 'prepare_bank_exam':$out=prepare_bank_exam($body);break;
+            case 'finalize_bank_exam':$out=finalize_bank_exam($body);break;
+            case 'add_versions':$out=add_exam_versions((int)($body['exam_id']??0),(int)($body['count']??1));break;
+            case 'version_content':$out=version_content((int)($_GET['exam_id']??0),(int)($_GET['version_id']??0));break;
+            case 'exam_pdf':require dirname(__DIR__).'/app/exam-pdf.php';export_exam_pdf((int)($_GET['exam_id']??0),(int)($_GET['version_id']??0),(int)($_GET['columns']??1),($_GET['key']??'0')==='1');
             case 'logout': $_SESSION=[];session_regenerate_id(true);$_SESSION['csrf']=bin2hex(random_bytes(32));$out=['csrf'=>$_SESSION['csrf']];break;
             case 'dashboard':
                 $out=['school'=>one('SELECT name FROM schools WHERE id=?',[$school])['name'],'classes'=>rows('SELECT c.*,COUNT(s.id) students FROM classes c LEFT JOIN students s ON s.class_id=c.id WHERE c.school_id=? GROUP BY c.id ORDER BY c.name',[$school]),'exams'=>array_map('with_exam_classes',rows('SELECT e.*,(SELECT COUNT(*) FROM questions WHERE exam_id=e.id) questions,(SELECT COUNT(*) FROM enrollments WHERE exam_id=e.id) enrolled,(SELECT COUNT(*) FROM results WHERE exam_id=e.id) graded FROM exams e WHERE e.school_id=? ORDER BY e.date DESC,e.id DESC',[$school])),'student_count'=>(int)one('SELECT COUNT(*) n FROM students WHERE school_id=?',[$school])['n'],'result_count'=>(int)one('SELECT COUNT(*) n FROM results r JOIN exams e ON e.id=r.exam_id WHERE e.school_id=?',[$school])['n']];break;
@@ -91,12 +101,13 @@ try {
             case 'update_grading':$out=update_assessment((int)($body['exam_id']??0),$body,false);break;
             case 'generate_cards':
                 $id=(int)($body['exam_id']??0);$e=exam_detail($id);$count=(int)($body['count']??1);if($count<1||$count>200)fail('Gere de 1 a 200 conjuntos por lote.');
+                if($e['versions']){$out=['booklets'=>array_column($e['versions'],'booklet_id'),'reusable'=>true];break;}
                 $reusable=($body['reusable']??true)!==false;
                 $out=transaction(function()use($e,$count,$reusable){
                     if($reusable){$existing=one('SELECT id FROM booklets WHERE exam_id=? AND reusable=1 AND template_id IS NULL ORDER BY id LIMIT 1',[$e['id']]);if($existing)return ['booklets'=>[(int)$existing['id']],'reusable'=>true];}
                     $ids=[];$total=count($e['questions']);for($i=0;$i<($reusable?1:$count);$i++){query('INSERT INTO booklets(exam_id,reusable) VALUES(?,?)',[$e['id'],$reusable?1:0]);$bid=(int)db()->lastInsertId();$ids[]=$bid;for($start=1,$page=1;$start<=$total;$start+=60,$page++)query('INSERT INTO cards(booklet_id,token,page,start_number,question_count) VALUES(?,?,?,?,?)',[$bid,bin2hex(random_bytes(16)),$page,$start,min(60,$total-$start+1)]);}audit('cards.generated',(int)$e['id']);return ['booklets'=>$ids,'reusable'=>$reusable];});break;
             case 'cards':
-                $e=exam((int)($_GET['exam_id']??0));$out=['exam'=>$e,'questions'=>rows('SELECT q.number,a.name area FROM questions q JOIN areas a ON a.id=q.area_id WHERE q.exam_id=? ORDER BY q.number',[$e['id']]),'cards'=>rows('SELECT c.id,c.token,c.page,c.start_number,c.question_count,c.booklet_id,b.reusable FROM cards c JOIN booklets b ON b.id=c.booklet_id WHERE b.exam_id=? AND b.template_id IS NULL ORDER BY b.id,c.page',[$e['id']])];break;
+                $e=exam((int)($_GET['exam_id']??0));$out=['exam'=>$e,'questions'=>rows('SELECT q.number,a.name area FROM questions q JOIN areas a ON a.id=q.area_id WHERE q.exam_id=? ORDER BY q.number',[$e['id']]),'cards'=>rows('SELECT c.id,c.token,c.page,c.start_number,c.question_count,c.booklet_id,b.reusable,b.version_id,v.label version_label FROM cards c JOIN booklets b ON b.id=c.booklet_id LEFT JOIN exam_versions v ON v.id=b.version_id WHERE b.exam_id=? AND b.template_id IS NULL ORDER BY b.id,c.page',[$e['id']])];break;
             case 'identify': $out=identify_card((string)($_GET['token']??''),(int)($_GET['exam_id']??0));unset($out['scores']);break;
             case 'scan': $out=save_scan((int)($body['exam_id']??0),(string)($body['token']??''),(int)($body['student_id']??0),$body['scores']??[],$body['quality']??[]);break;
             case 'report':$out=report((int)($_GET['id']??0),(int)($_GET['class_id']??0),strval_trim($_GET['grade_name']??''));break;
