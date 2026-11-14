@@ -1,5 +1,16 @@
 # Registro de verificação — atualizado em 11/11/2026
 
+## Matrícula de seis dígitos em 14/11/2026
+
+- Cartões compactos e A4, PNG e capa PDF incluem seis caixas para escrita e seis colunas de bolhas de 0 a 9. A leitura usa as bolhas. IDs menores são completados com zeros à esquerda; não há truncamento de IDs longos ou conversão de letras.
+- A câmera sugere apenas um participante correspondente e disponível, com confirmação explícita ou escolha de outro. ID em branco, incompleto, múltiplo, ambíguo, desconhecido ou duplicado permite seleção manual. O servidor revalida a confirmação; as medições e a decisão ficam na folha e na auditoria.
+- Sete testes novos cobrem rasterização/leitura de ID em diferentes grades, A4, zeros à esquerda e ID zero, brancos, incompletos, múltiplos, ambíguos e correspondência única. Os 51 testes anteriores de OMR/motor continuam aprovados (58 no total).
+- Integração de banco/versões: 24 verificações em SQLite temporário, incluindo confirmação divergente/duplicada rejeitada e seleção manual persistida. Chrome/Playwright usa o cartão extraído do PDF da versão B como stream da câmera: confirma ID 000004, permite trocar, salva após conferir e testa seleção manual de ID 999999 sem cadastro. Nenhuma câmera física é usada.
+- Regressão da API anterior: 54 verificações, fluxo DOM e exportação em Chrome. Migração v5 idempotente em cópia privada, preservando registros, QR e resultados anteriores. Sintaxe PHP/JavaScript e requisitos do servidor conferidos.
+- PDFs em uma/duas colunas, todas as versões e capas com blocos de 60/1 questões renderizados e conferidos estruturalmente; capa e cartão A4 inspecionados visualmente. Os cartões antigos permanecem aceitos.
+- Impressão em papel e câmera física continuam pendentes de validação na escola. Os testes não modificam o banco da aplicação.
+
+
 ## Interface e responsividade — versão ui9
 
 - CSS reorganizado com tokens compartilhados, base móvel, componentes/consultas ao container, campos de 16 px, controles de toque de 44 px, tabelas com rolagem localizada e cards para resultados. Menu com fechamento/foco/teclado, dialogs com viewport visual e áreas seguras, impressão e página offline revisados. APIs, banco e regras de negócio preservados.

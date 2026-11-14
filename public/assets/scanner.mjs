@@ -1,5 +1,7 @@
 import {escapeHtml as esc} from './layout.mjs?v=ui9';
-import {createScanEngine} from './scan-engine.mjs?v=ui9';
+import {createScanEngine} from './scan-engine.mjs?v=id1';
+import {suggestStudent} from './student-id.mjs?v=id1';
+const readingSignature=reading=>JSON.stringify([reading.answers,reading.studentId?.value??null,reading.studentId?.status??'legacy']);
 let active=null;
 export function stopScanner(){
     if(!active)return;
@@ -127,7 +129,7 @@ export function openScanner(exam,ui){
             readingCard=card;const reading=await s.engine.read(card.question_count,exam.alternatives);
             if(active!==s||s.stopped||generation!==s.generation)return;
             s.cardRatio=reading.layout.height/reading.layout.width;updateGuide();phase(2);showAlignment(reading.markers,width,height);
-            const signature=JSON.stringify(reading.answers);
+            const signature=readingSignature(reading);
             if(s.removeGuard?.token===qr.data&&s.removeGuard.signature===signature){s.stable=null;status('Retire a folha já salva do enquadramento antes de apresentar o próximo aluno.','success');return;}
             s.removeGuard=null;
             if(!s.stable||s.stable.token!==qr.data||s.stable.signature!==signature){s.stable={token:qr.data,signature,at:performance.now()};status('QR e folha identificados. Confirmando as marcações…');return;}
@@ -148,12 +150,26 @@ export function openScanner(exam,ui){
     }
     function renderReview(card,token,reading){
         const available=exam.students.filter(student=>!student.result_id&&(card.reusable?(!student.booklet_id||student.template_id===card.booklet)&&!(student.scanned_pages||[]).includes(card.page):(!student.booklet_id||student.booklet_id===card.booklet))&&(!card.student_id||student.id===card.student_id));
-        const review=$('#review'),selected=card.student_id||(available.some(student=>student.id===s.lastStudent&&!student.result_id)?s.lastStudent:null);
+        const suggestion=suggestStudent(reading.studentId,exam.students,available),legacy=!reading.studentId||reading.studentId.status==='legacy';let identityMethod='manual';
+        const review=$('#review'),selected=card.student_id||(legacy&&available.some(student=>student.id===s.lastStudent&&!student.result_id)?s.lastStudent:null);
         review.innerHTML=`<div class="reading-ready"><div class="reading-ready-header"><span>${icon('check')}Marcações reconhecidas${card.version_label?` · Versão ${esc(card.version_label)}`:``}</span><span class="badge">Folha ${card.page}</span></div><h3>De qual aluno é este cartão?</h3><p class="small muted">Questões ${card.start_number}–${card.start_number+card.question_count-1} · ${card.reusable?'QR reutilizável':'Cartão individual'}</p><div class="scan-counts"><span><strong>${reading.answers.filter(a=>a.length===1).length}</strong> com uma marca</span><span><strong>${reading.blank}</strong> em branco</span><span><strong>${reading.multiple}</strong> múltiplas</span></div><form id="assign"><div class="field"><label for="student-search">Buscar aluno, turma ou matrícula</label><input id="student-search" type="search" placeholder="Digite para encontrar…" autocomplete="off"></div><div class="field"><label for="scan-student">Estudante desta folha</label><select id="scan-student" required><option value="">Selecione o aluno</option>${available.map(student=>`<option value="${student.id}" ${student.id===selected?'selected':''}>${esc(student.social_name||student.name)} · ${esc(student.class_name||'')} · ${esc(student.external_id)}</option>`).join('')}</select></div>${available.length?'':'<p class="note warn">Não há alunos pendentes para esta folha. Confira se já foi salva ou se pertence ao modelo de uma leitura em andamento.</p>'}${selected?'<p class="small muted">Confira o estudante selecionado antes de salvar.</p>':''}<button type="submit" id="save-scan" ${available.length?'':'disabled'}>${icon('check')}Salvar e continuar</button><button class="quiet" id="retry-scan" type="button">Refazer esta leitura</button><div id="save-error" role="alert"></div></form><details class="scan-preview"><summary>Conferir imagem e marcações</summary><p class="small muted">Prévia com contraste corrigido. Branco e múltiplas contam como erro.</p><canvas id="aligned" width="800" height="1120" aria-label="Prévia alinhada com contraste reforçado"></canvas><div class="report-questions">${reading.answers.map((a,i)=>`<div class="question-chip ${a.length===1?'':'blank'}"><strong>Q${card.start_number+i}</strong>${a.length===1?a[0]:a.length?'Múltiplas: '+a.join(', '):'Em branco'}</div>`).join('')}</div></details></div>`;
+        if(!legacy){
+            const identification=document.createElement('section');identification.className='note student-id-review';identification.setAttribute('aria-live','polite');
+            const status={blank:'Matrícula em branco.',incomplete:'Matrícula incompleta.',multiple:'Mais de um número marcado na mesma coluna.',ambiguous:'Marcação da matrícula ambígua.',unreadable:'Não foi possível ler a matrícula.',not_found:'Matrícula sem correspondência entre os participantes.',duplicate:'Mais de um cadastro corresponde a esses seis dígitos.',unavailable:'O aluno identificado já foi corrigido ou está vinculado a outro cartão/versão.'};
+            const student=suggestion.student;
+            identification.innerHTML=suggestion.status==='found'?`<strong>ID lido: ${esc(reading.studentId.value)}</strong><p>É este aluno mesmo?</p><p><strong>${esc(student.social_name||student.name)}</strong><br>${esc(student.class_name||'')} · Matrícula/ID: ${esc(student.external_id)}</p><div class="actions"><button type="button" id="confirm-student-id">Sim, é este aluno</button><button type="button" class="secondary" id="change-student-id">Escolher outro aluno</button></div><p id="student-id-confirmed" class="small" hidden>Aluno confirmado. Confira as marcações antes de salvar.</p>`:`<strong>${esc(status[suggestion.status]||'Matrícula não identificada.')}</strong>${reading.studentId.value?`<p>ID lido: ${esc(reading.studentId.value)}</p>`:''}<p>Selecione o aluno manualmente abaixo ou refaça a leitura.</p>`;
+            $('#assign').before(identification);
+            if(suggestion.status==='found'){
+                $('#confirm-student-id').onclick=()=>{$('#student-search').value='';$('#student-search').oninput({target:$('#student-search')});$('#scan-student').value=String(student.id);identityMethod='confirmed';$('#student-id-confirmed').hidden=false;$('#confirm-student-id').disabled=true;};
+                $('#change-student-id').onclick=()=>{$('#scan-student').value='';identityMethod='manual';$('#student-id-confirmed').hidden=true;$('#confirm-student-id').disabled=false;$('#student-search').focus();};
+            }
+        }
+        $('#scan-student').onchange=()=>{identityMethod='manual';if($('#student-id-confirmed'))$('#student-id-confirmed').hidden=true;if($('#confirm-student-id'))$('#confirm-student-id').disabled=false;};
         const canvas=$('#aligned');canvas.width=reading.layout.width;canvas.height=reading.layout.height;const cx=canvas.getContext('2d'),image=cx.createImageData(canvas.width,canvas.height);
         for(let i=0,p=0;i<reading.normalized.length;i++,p+=4){image.data[p]=image.data[p+1]=image.data[p+2]=reading.normalized[i];image.data[p+3]=255;}cx.putImageData(image,0,0);
         const normalize=value=>value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase();
         $('#student-search').oninput=event=>{
+            identityMethod='manual';if($('#student-id-confirmed'))$('#student-id-confirmed').hidden=true;if($('#confirm-student-id'))$('#confirm-student-id').disabled=false;
             const term=normalize(event.target.value),filtered=available.filter(student=>normalize(`${student.name} ${student.social_name} ${student.class_name} ${student.external_id}`).includes(term));
             const old=$('#scan-student').value;$('#scan-student').innerHTML='<option value="">Selecione o aluno</option>'+filtered.map(student=>`<option value="${student.id}">${esc(student.social_name||student.name)} · ${esc(student.class_name||'')} · ${esc(student.external_id)}</option>`).join('');
             if(filtered.some(student=>String(student.id)===old))$('#scan-student').value=old;else if(filtered.length===1)$('#scan-student').value=String(filtered[0].id);
@@ -164,9 +180,9 @@ export function openScanner(exam,ui){
             if(!studentId){$('#save-error').innerHTML='<div class="error">Selecione o estudante antes de salvar.</div>';return;}
             button.disabled=true;
             try{
-                const out=await api('scan',{exam_id:exam.id,token,student_id:studentId,scores:reading.scores,quality:reading.quality});
+                const out=await api('scan',{exam_id:exam.id,token,student_id:studentId,scores:reading.scores,quality:reading.quality,...(!legacy?{identity:{scores:reading.studentId.scores,method:identityMethod}}:{})});
                 if(active!==s||s.stopped)return;
-                card.processed=!card.reusable;s.removeGuard={token,signature:JSON.stringify(reading.answers)};
+                card.processed=!card.reusable;s.removeGuard={token,signature:readingSignature(reading)};
                 const student=exam.students.find(x=>x.id===studentId);student.booklet_id=out.booklet_id;student.template_id=out.template_id;student.scanned_pages=[...new Set([...(student.scanned_pages||[]),out.scanned_page])];
                 if(out.complete)student.result_id=out.result_id;
                 s.lastStudent=out.complete?null:studentId;

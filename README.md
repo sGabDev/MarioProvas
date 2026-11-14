@@ -11,8 +11,13 @@ mesmo arquivo. Cada versão tem gabarito e cartão próprios; a
 câmera identifica a versão pelo QR antes da confirmação da leitura. O conteúdo
 das provas finalizadas é preservado quando o banco é editado.
 
+Os cartões novos incluem **matrícula/ID de seis dígitos**, preenchidos em bolhas.
+Ao ler, a câmera pede para confirmar o aluno encontrado ou escolher outro. Se
+não identificar, a seleção é manual. IDs menores usam zeros à esquerda; a
+correspondência considera a matrícula do cadastro. Confira o passo a passo no guia abaixo.
+
 Veja o [guia de criação, impressão e correção por versão](docs/PROVAS-E-VERSOES.md)
-para o passo a passo, posições fixas, resultados e testes. A migração v4 é
+para o passo a passo, posições fixas, resultados e testes. A migração v5 é
 automática e preserva os dados existentes. Atualize os arquivos completos,
 incluindo `app/vendor/tfpdf/` e `app/vendor/qrcode/`, e use Ctrl+F5. O fluxo anterior de simulados por
 gabarito continua disponível em **Novo simulado**; as instruções anteriores
@@ -136,11 +141,11 @@ Faça backup privado e consistente do SQLite antes de enviar o pacote. Substitua
 
 Abra o simulado → **PNG / imprimir** → **Compacto para a capa** → **Baixar PNG** em cada bloco. O arquivo mostra somente o QR, as questões numeradas com suas alternativas e as quatro referências da câmera, sobre fundo branco. Não inclui nome do site, nome do simulado, resumo de quantidade/bloco, instruções, rodapé nem campo para nome. Essa apresentação também vale para as novas exportações A4. Os dados de organização permanecem na tela de download, fora da imagem e da impressão. O download é gerado no dispositivo, com metadados PNG de tamanho físico (`pHYs`) para 300/600 dpi. No Word/LibreOffice/Canva, insira a imagem original e confira a largura indicada; mantenha a proporção, não recorte as margens e evite recompressão ou capturas de tela.
 
-Com cinco alternativas, os tamanhos são aproximadamente: 10 questões **8,64 × 6,2 cm**, 30 questões **8,64 × 11,8 cm**, 60 questões **16 × 11,8 cm**. A distribuição em até quatro colunas e a altura são calculadas pela quantidade efetiva de questões e alternativas; blocos finais não reservam espaço para 60 questões quando têm menos. O compacto de 60 questões ocupa cerca de **63% menos área** que o cartão anterior de 19 × 26,6 cm.
+Com cinco alternativas e identificação de seis dígitos, o compacto de 60 questões mede **16 × 17,08 cm**. A distribuição em até quatro colunas e a altura são calculadas pela quantidade efetiva de questões e alternativas; confira as dimensões mostradas para cada bloco antes de imprimir. Os desenhos compactos anteriores, sem matrícula, continuam sendo reconhecidos.
 
 As bolhas conservam **4 mm de diâmetro** no tamanho recomendado, e o QR tem 20,8 mm mais sua margem branca. O compacto não é uma miniatura proporcional do A4: a grade foi reorganizada, o cabeçalho reduzido e as letras internas clareadas. Não diminua abaixo das dimensões indicadas: aumentar dpi melhora a imagem, mas não recupera contraste/foco perdido quando a impressão física fica pequena demais. Para avaliações acima de 60 questões, baixe todos os blocos e coloque-os na capa/páginas da prova mantendo suas dimensões e margens; cada bloco precisa ser lido para concluir o resultado.
 
-O leitor reconhece automaticamente o compacto e os dois desenhos A4 anteriores pelas referências e contornos; os tokens e os registros existentes não são trocados. Não há migração de banco nesta atualização. Na câmera, enquadre **o cartão inteiro**, com as quatro referências, sem precisar mostrar toda a capa. Preserve espaço branco ao redor para que textos e desenhos da capa não encostem nas marcas ou no QR. Cartões em formatos diferentes podem ser usados para estudantes diferentes no mesmo simulado.
+O leitor reconhece automaticamente os compactos com e sem matrícula e os desenhos A4 novos e anteriores pelas referências e contornos; os tokens e os registros existentes não são trocados. A migração v5 acrescenta os registros da identificação sem alterar os dados antigos. Na câmera, enquadre **o cartão inteiro**, com as quatro referências, sem precisar mostrar toda a capa. Preserve espaço branco ao redor para que textos e desenhos da capa não encostem nas marcas ou no QR. Cartões em formatos diferentes podem ser usados para estudantes diferentes no mesmo simulado.
 
 ## Leitura rápida, enquadramento e cores
 

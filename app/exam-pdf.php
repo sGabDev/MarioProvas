@@ -60,12 +60,12 @@ final class ExamPdf extends tFPDF {
     // 4 mm, quatro referências e QR com margem branca de quatro módulos.
     private function cardLayout(int $count,int $alternatives): array {
         $cw=44+$alternatives*28;$best=null;
-        for($cols=1;$cols<=4;$cols++){$rows=(int)ceil($count/$cols);if($rows>15)continue;$w=max(432,$cols*$cw+64);$h=156+($rows-1)*28+42;if(!$best||$w*$h<$best['w']*$best['h'])$best=['w'=>$w,'h'=>$h,'cols'=>$cols,'rows'=>$rows,'cw'=>$cw];}
+        for($cols=1;$cols<=4;$cols++){$rows=(int)ceil($count/$cols);if($rows>15)continue;$w=max(432,$cols*$cw+64);$h=420+($rows-1)*28+42;if(!$best||$w*$h<$best['w']*$best['h'])$best=['w'=>$w,'h'=>$h,'cols'=>$cols,'rows'=>$rows,'cw'=>$cw];}
         return $best;
     }
     public function answerCover(array $cards): void {
         $this->cover=true;$this->AddPage();$this->SetFont('School','B',11);$this->Cell(182,7,'Orientações para a prova',0,1);
-        $this->SetFont('School','',10);$this->MultiCell(182,5,'Confira seu nome, turma e versão. Marque uma alternativa por questão com caneta de cor nítida. Preserve os QR codes e as quatro marcas de cada cartão.');$this->Ln(5);
+        $this->SetFont('School','',10);$this->MultiCell(182,5,'Confira seu nome, turma e versão. Preencha a matrícula/ID nas seis colunas de bolhas, usando zeros à esquerda se necessário. Marque uma alternativa por questão. Preserve os QR codes e as quatro marcas de cada cartão.');$this->Ln(5);
         foreach($cards as $card){
             $l=$this->cardLayout((int)$card['question_count'],(int)$this->examData['alternatives']);$w=$l['w']*.2;$h=$l['h']*.2;
             if($this->GetY()+$h+12>$this->bottom)$this->AddPage();
@@ -79,9 +79,19 @@ final class ExamPdf extends tFPDF {
         $qr=new QRCode();$qr->setTypeNumber(3);$qr->setErrorCorrectLevel(QR_ERROR_CORRECT_LEVEL_M);$qr->addData($card['token'],QR_MODE_8BIT_BYTE);$qr->make();$n=$qr->getModuleCount();$mod=104/$n;
         $qx=$l['w']-152;$qy=18;$this->SetFillColor(255,255,255);$this->Rect($x+($qx-4*$mod)*$s,$y+($qy-4*$mod)*$s,(104+8*$mod)*$s,(104+8*$mod)*$s,'F');$this->SetFillColor(0,0,0);
         for($r=0;$r<$n;$r++)for($c=0;$c<$n;$c++)if($qr->isDark($r,$c))$this->Rect($x+($qx+$c*$mod)*$s,$y+($qy+$r*$mod)*$s,($mod+.015)*$s,($mod+.015)*$s,'F');
+        $this->SetFont('School','',7.4);$this->SetTextColor(0,0,0);$this->SetXY($x+52*$s,$y+48*$s-1.5);$this->Cell(50,3,'ID / Matrícula (6 dígitos)',0,0);
+        for($col=0;$col<6;$col++){
+            $this->SetDrawColor(85,85,85);$this->SetLineWidth(.2);$this->Rect($x+(66+$col*28-14)*$s,$y+68*$s,28*$s,24*$s);
+            for($digit=0;$digit<10;$digit++){
+                $bx=$x+(66+$col*28)*$s;$by=$y+(116+$digit*28)*$s;$this->SetDrawColor(0,0,0);$this->SetLineWidth(.3);$this->SetFillColor(255,255,255);$this->circle($bx,$by,2);
+                $this->SetFont('School','',5.1);$this->SetTextColor(170,170,170);$this->SetXY($bx-2,$by-1.1);$this->Cell(4,3,(string)$digit,0,0,'C');
+            }
+        }
+        $this->SetFont('School','',6.8);$this->SetTextColor(50,50,50);
+        foreach(['Marque um dígito','por coluna.','Complete com zeros','à esquerda.'] as $i=>$line){$this->SetXY($x+250*$s,$y+(170+$i*22)*$s-1.5);$this->Cell(36,3,$line,0,0);}
         $offset=($l['w']-$l['cols']*$l['cw']-64)/2;$this->SetLineWidth(.3);$this->SetDrawColor(0,0,0);
         for($i=0;$i<$card['question_count'];$i++){
-            $cx=78+$offset+intdiv($i,$l['rows'])*$l['cw'];$cy=156+($i%$l['rows'])*28;
+            $cx=78+$offset+intdiv($i,$l['rows'])*$l['cw'];$cy=420+($i%$l['rows'])*28;
             $this->SetFont('School','',6.8);$this->SetTextColor(0,0,0);$this->SetXY($x+($cx-23)*$s-8,$y+$cy*$s-1.1);$this->Cell(8,3,(string)($card['start_number']+$i),0,0,'R');
             for($a=0;$a<$this->examData['alternatives'];$a++){
                 $bx=$x+($cx+$a*28)*$s;$by=$y+$cy*$s;$this->SetFillColor(255,255,255);$this->circle($bx,$by,2);

@@ -58,9 +58,9 @@ function identify_card(string $token, int $examId): array
         fail('Cartão já processado. Nenhum resultado foi duplicado.', 409);
     return $c;
 }
-function save_scan(int $examId, string $token, int $studentId, array $scores, array $quality): array
+function save_scan(int $examId, string $token, int $studentId, array $scores, array $quality, ?array $identity=null): array
 {
-    return transaction(function () use ($examId, $token, $studentId, $scores, $quality) {
+    return transaction(function () use ($examId, $token, $studentId, $scores, $quality, $identity) {
         $c = identify_card($token, $examId);
         $e = exam($examId);
         $u = require_user();
@@ -71,6 +71,7 @@ function save_scan(int $examId, string $token, int $studentId, array $scores, ar
         marks_from_scores($scores, (int) $e['alternatives']);
         if (!one('SELECT 1 FROM enrollments WHERE exam_id=? AND student_id=?', [$examId, $studentId]))
             fail('Estudante não incluído neste simulado.');
+        $idReading=validate_student_identity($examId,$studentId,$identity);
         if (one('SELECT id FROM results WHERE exam_id=? AND student_id=?', [$examId, $studentId]))
             fail('Este estudante já tem resultado neste simulado. Nenhum resultado foi duplicado.', 409);
         $templateId = $c['reusable'] ? (int)$c['booklet'] : null;
@@ -95,7 +96,8 @@ function save_scan(int $examId, string $token, int $studentId, array $scores, ar
         if (one('SELECT id FROM booklets WHERE exam_id=? AND student_id=? AND id<>?', [$examId, $studentId, $c['booklet']]))
             fail('Estudante já vinculado a outro conjunto. Use as páginas desse conjunto.', 409);
         query('UPDATE booklets SET student_id=? WHERE id=?', [$studentId, $c['booklet']]);
-        query('UPDATE cards SET scores=?,scanned_at=CURRENT_TIMESTAMP,scanned_by=? WHERE id=?', [json_encode($scores), $u['id'], $c['id']]);
+        query('UPDATE cards SET scores=?,scanned_at=CURRENT_TIMESTAMP,scanned_by=?,student_id_scores=?,detected_external_id=?,identity_method=?,id_status=? WHERE id=?', [json_encode($scores),$u['id'],$idReading['scores']===null?null:json_encode($idReading['scores']),$idReading['value'],$idReading['method'],$idReading['status'],$c['id']]);
+        if($identity!==null)audit($idReading['method']==='confirmed'?'card.id_confirmed':($idReading['value']!==null?'card.id_manual_override':'card.id_manual'),(int)$c['id']);
         $cards = rows('SELECT * FROM cards WHERE booklet_id=? ORDER BY page', [$c['booklet']]);
         $pending = count(array_filter($cards, fn($p) => !$p['scanned_at']));
         audit('card.scanned', (int) $c['id']);

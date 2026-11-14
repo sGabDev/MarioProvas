@@ -3,6 +3,7 @@ declare(strict_types=1);
 require dirname(__DIR__).'/app/bootstrap.php';
 require dirname(__DIR__).'/app/import.php';
 require dirname(__DIR__).'/app/grading.php';
+require dirname(__DIR__).'/app/student-identity.php';
 require dirname(__DIR__).'/app/assessment.php';
 require dirname(__DIR__).'/app/reports.php';
 require dirname(__DIR__).'/app/question-bank.php';
@@ -112,7 +113,9 @@ try {
             case 'cards':
                 $e=exam((int)($_GET['exam_id']??0));$out=['exam'=>$e,'questions'=>rows('SELECT q.number,a.name area FROM questions q JOIN areas a ON a.id=q.area_id WHERE q.exam_id=? ORDER BY q.number',[$e['id']]),'cards'=>rows('SELECT c.id,c.token,c.page,c.start_number,c.question_count,c.booklet_id,b.reusable,b.version_id,v.label version_label FROM cards c JOIN booklets b ON b.id=c.booklet_id LEFT JOIN exam_versions v ON v.id=b.version_id WHERE b.exam_id=? AND b.template_id IS NULL ORDER BY b.id,c.page',[$e['id']])];break;
             case 'identify': $out=identify_card((string)($_GET['token']??''),(int)($_GET['exam_id']??0));unset($out['scores']);break;
-            case 'scan': $out=save_scan((int)($body['exam_id']??0),(string)($body['token']??''),(int)($body['student_id']??0),$body['scores']??[],$body['quality']??[]);break;
+            case 'scan':
+                if(isset($body['identity'])&&!is_array($body['identity']))fail('Identificação do aluno inválida.');
+                $out=save_scan((int)($body['exam_id']??0),(string)($body['token']??''),(int)($body['student_id']??0),$body['scores']??[],$body['quality']??[],$body['identity']??null);break;
             case 'report':$out=report((int)($_GET['id']??0),(int)($_GET['class_id']??0),strval_trim($_GET['grade_name']??''));break;
             case 'individual':$out=individual_report((int)($_GET['id']??0));break;
             case 'export':export_report((int)($_GET['id']??0),(int)($_GET['class_id']??0),strval_trim($_GET['grade_name']??''));

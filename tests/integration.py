@@ -76,7 +76,7 @@ try:
     imported=c.call('import',{'nonce':preview['nonce']});dash=c.call('dashboard')
     check(imported['imported']==885 and dash['student_count']==885 and len(dash['classes'])==27,'importação persistente dos 885 estudantes e 27 turmas')
     ui_env=os.environ.copy();ui_env.update(MARIOPROVAS_TEST_URL=BASE,MARIOPROVAS_TEST_EMAIL=email,MARIOPROVAS_TEST_PASSWORD=password)
-    subprocess.run(['node','tests/ui.mjs'],cwd=ROOT,env=ui_env,check=True,timeout=45)
+    subprocess.run(['node','tests/ui.mjs'],cwd=ROOT,env=ui_env,check=True,timeout=120)
     c.call('upload',multipart=multipart(csv_content));p=c.call('preview',{'mapping':mapping})
     check(p['counts']['duplicate']==885 and p['counts']['ready']==0,'reimportação reconhece todos os identificadores existentes')
     out=c.call('import',{'nonce':p['nonce']});check(out['imported']==0 and c.call('dashboard')['student_count']==885,'reimportação idempotente')

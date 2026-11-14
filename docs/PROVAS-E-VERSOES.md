@@ -160,9 +160,43 @@ anulação na própria prova** continua permitida pelo fluxo anterior e recalcul
 os resultados de todas as versões pela identidade da questão. Não altera os
 enunciados, ordens, QR codes ou medições já lidas.
 
+## Identificar o aluno pela matrícula/ID
+
+Os cartões novos, tanto no PDF da capa quanto no PNG e no formato A4, incluem
+**seis colunas numéricas**. Escreva o ID nas seis caixas superiores e preencha
+**uma bolha de 0 a 9 em cada coluna**, na mesma ordem. A câmera lê as bolhas;
+preencher apenas as caixas à mão não identifica o aluno.
+
+Use a matrícula/ID do cadastro do estudante. Complete IDs menores com zeros à
+esquerda: `1234` fica `001234`. IDs com mais de seis dígitos ou letras continuam
+usando a seleção manual; nenhum número é cortado para tentar uma associação.
+
+Ao abrir **Corrigir com câmera** e ler o cartão:
+
+1. Se houver um único participante correspondente e disponível para essa folha,
+   aparecem o ID lido, nome, turma e a pergunta **É este aluno mesmo?**.
+2. Clique em **Sim, é este aluno** ou em **Escolher outro aluno** para pesquisar
+   e selecionar manualmente. A sugestão não salva nem confirma sozinha.
+3. Se o ID estiver em branco, incompleto, ambíguo, desconhecido ou corresponder
+   a cadastros equivalentes (como `1234` e `001234`), o sistema informa o motivo
+   e permite selecionar o estudante manualmente ou refazer a leitura.
+4. Confira a imagem e as respostas. Só **Salvar e continuar** grava a folha e
+   a associação escolhida, respeitando a versão identificada pelo QR.
+
+Em provas com vários blocos, preencha o mesmo ID em todos eles. Um aluno já
+corrigido ou vinculado a outro modelo não é sugerido para uma nova tentativa.
+Os cartões antigos continuam aceitos com a seleção manual existente.
+
+A leitura dos seis dígitos, seu estado e a confirmação ou escolha manual ficam
+registrados junto à folha. O servidor revalida a correspondência ao confirmar.
+A migração v5 acrescenta esses campos sem alterar cartões ou resultados antigos.
+Com o espaço para a matrícula, o compacto de 60 questões/cinco alternativas mede
+**16 × 17,08 cm**. Confira sempre as dimensões indicadas ao baixar o PNG; blocos
+adicionais podem ocupar outra folha de capa antes das questões.
+
 ## Atualização, dependências e verificação
 
-Preserve `config.php` e `storage/` ao atualizar. A migração v4 é automática e
+Preserve `config.php` e `storage/` ao atualizar. A migração v5 é automática e
 aditiva, sem reinstalação ou importação de dados de demonstração. Faça o backup
 privado habitual antes de atualizar uma instalação em uso. Recarregue com
 **Ctrl+F5**; a PWA usa cache v11 e os recursos alterados têm URLs versionadas.
@@ -189,7 +223,8 @@ C:\xampp\php\php.exe scripts/check.php
 
 `bank_integration.py` cobre API e navegador real (Playwright/Chrome), criação e
 edição na interface, prévia, posições fixas, PDFs, isolamento entre escolas,
-imutabilidade, seleção automática, recálculo, anulação, cartões multipágina e
+imutabilidade, seleção automática, recálculo, anulação, identificação de seis
+dígitos, confirmação/troca e seleção manual do aluno, cartões multipágina e
 leitura/revisão/confirmação de uma versão B usando pixels do cartão extraído
 da capa em PDF, além de conferir o PNG exportado e os blocos de 60 e 1 questões
 da capa multipágina. Verifica PNG com transparência, JPEG, imagens preservadas

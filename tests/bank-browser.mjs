@@ -5,7 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import {createRequire} from 'node:module';
 import {createCanvas,loadImage} from '@napi-rs/canvas';
-import {bubblePosition,compactLayout} from '../public/assets/layout.mjs';
+import {bubblePosition,identifiedLayout,idBubblePosition} from '../public/assets/layout.mjs';
 import {decodeQr} from '../public/assets/qr.mjs';
 import {readCard} from '../public/assets/omr.mjs';
 const require=createRequire(import.meta.url);
@@ -67,7 +67,7 @@ try{
     await page.goto(`${base}print?exam=${eid}&sets=${v.booklet_id}`);await page.locator('.download-png').waitFor();assert.match(await page.locator('.printed-version').textContent(),/Versão B/);
     const pngEvent=page.waitForEvent('download');await page.locator('.download-png').click();const png=await pngEvent;await png.saveAs('tests/artifacts/bank-version-b.png');
     const image=await loadImage('tests/artifacts/bank-version-b.png'),canvas=createCanvas(image.width,image.height),ctx=canvas.getContext('2d');ctx.drawImage(image,0,0);
-    const layout=compactLayout(8,5),scale=image.width/layout.width;
+    const layout=identifiedLayout(8,5),scale=image.width/layout.width;
     for(let i=0;i<8;i++){const p=bubblePosition(i,content.questions[i].answer.charCodeAt(0)-65,layout);ctx.fillStyle='#111';ctx.beginPath();ctx.arc(p.x*scale,p.y*scale,p.r*.85*scale,0,Math.PI*2);ctx.fill();}
     const bitmap=ctx.getImageData(0,0,canvas.width,canvas.height),qr=decodeQr(bitmap,jsQR),card=(await api('cards',undefined,{exam_id:eid})).cards.find(c=>c.version_id===v.id);
     assert.equal(qr.data,card.token);const reading=readCard(bitmap,qr,8,5);assert.deepEqual(reading.answers.map(a=>a[0]),content.questions.map(q=>q.answer));
@@ -80,13 +80,16 @@ try{
         const image=await loadImage(`tests/artifacts/bank-cover-multi-${i+1}.png`),surface=createCanvas(image.width,image.height),cx=surface.getContext('2d');cx.drawImage(image,0,0);const bitmap=cx.getImageData(0,0,image.width,image.height),qr=decodeQr(bitmap,jsQR);assert.equal(qr.data,multiCards[i].token);assert.equal(readCard(bitmap,qr,multiCards[i].question_count,5).blank,multiCards[i].question_count);
     }
     for(let i=0;i<8;i++){const p=bubblePosition(i,content.questions[i].answer.charCodeAt(0)-65,l);pdfCtx.fillStyle='#111';pdfCtx.beginPath();pdfCtx.arc(m[0].x+(p.x-l.markers[0].x)*sx,m[0].y+(p.y-l.markers[0].y)*sy,p.r*.85*Math.min(sx,sy),0,Math.PI*2);pdfCtx.fill();}
-    pdfBitmap=pdfCtx.getImageData(0,0,cover.width,cover.height);assert.deepEqual(readCard(pdfBitmap,pdfQr,8,5).answers.map(a=>a[0]),content.questions.map(q=>q.answer));
+    const answersOnly=pdfCtx.getImageData(0,0,cover.width,cover.height);
+    for(let col=0;col<6;col++){const p=idBubblePosition(col,col===5?4:0,l);pdfCtx.fillStyle='#111';pdfCtx.beginPath();pdfCtx.arc(m[0].x+(p.x-l.markers[0].x)*sx,m[0].y+(p.y-l.markers[0].y)*sy,p.r*.85*Math.min(sx,sy),0,Math.PI*2);pdfCtx.fill();}
+    pdfBitmap=pdfCtx.getImageData(0,0,cover.width,cover.height);assert.equal(readCard(pdfBitmap,pdfQr,8,5).studentId.value,'000004');assert.deepEqual(readCard(pdfBitmap,pdfQr,8,5).answers.map(a=>a[0]),content.questions.map(q=>q.answer));
     const marked=pdfCanvas.toDataURL('image/png');
+    pdfCtx.putImageData(answersOnly,0,0);for(let col=0;col<6;col++){const p=idBubblePosition(col,9,l);pdfCtx.fillStyle='#111';pdfCtx.beginPath();pdfCtx.arc(m[0].x+(p.x-l.markers[0].x)*sx,m[0].y+(p.y-l.markers[0].y)*sy,p.r*.85*Math.min(sx,sy),0,Math.PI*2);pdfCtx.fill();}const unknownId=pdfCanvas.toDataURL('image/png');
     // A câmera de teste é um stream de pixels reais do cartão preenchido.
     await page.addInitScript(({marked})=>{
         let stream;
         Object.defineProperty(navigator,'mediaDevices',{configurable:true,value:{enumerateDevices:async()=>[{kind:'videoinput',deviceId:'test-card',label:'Cartão de teste'}],getUserMedia:async()=>{
-            const image=new Image();image.src=marked;await image.decode();const canvas=document.createElement('canvas');canvas.width=image.width;canvas.height=image.height;canvas.getContext('2d').drawImage(image,0,0);stream=canvas.captureStream(10);const timer=setInterval(()=>canvas.getContext('2d').drawImage(image,0,0),100);stream.getVideoTracks()[0].addEventListener('ended',()=>clearInterval(timer));return stream;
+            const image=new Image();image.src=window.__cardFixture||marked;await image.decode();const canvas=document.createElement('canvas');canvas.width=image.width;canvas.height=image.height;canvas.getContext('2d').drawImage(image,0,0);stream=canvas.captureStream(10);const timer=setInterval(()=>canvas.getContext('2d').drawImage(image,0,0),100);stream.getVideoTracks()[0].addEventListener('ended',()=>clearInterval(timer));return stream;
         }}});
     },{marked});
     await go(`exam/${eid}`,'#scan');await page.locator('#scan').click();await page.locator('#start-camera').click();await page.locator('#save-scan').waitFor({timeout:25000});
@@ -94,7 +97,13 @@ try{
     const prior=await api('report',undefined,{id:eid});await page.locator('.scan-preview summary').click();await page.locator('#aligned').waitFor({state:'visible'});
     assert.equal((await api('report',undefined,{id:eid})).students.length,prior.students.length,'revisar câmera não grava antes de confirmar');
     await page.screenshot({path:'tests/artifacts/bank-camera-review.png',fullPage:true});
-    await page.locator('#scan-student').selectOption({index:1});await page.locator('#save-scan').click();await page.locator('.scan-saved').waitFor();assert.match(await page.locator('.saved-result').textContent(),/7 acertos/);await page.locator('#close-scan').click();
+    assert.equal(await page.locator('#scan-student').inputValue(),'');assert.match(await page.locator('.student-id-review').textContent(),/000004/);
+    await page.locator('#confirm-student-id').click();const chosen=await page.locator('#scan-student').inputValue();assert.ok(chosen);await page.locator('#change-student-id').click();assert.equal(await page.locator('#scan-student').inputValue(),'');await page.locator('#confirm-student-id').click();assert.equal(await page.locator('#scan-student').inputValue(),chosen);await page.locator('#save-scan').click();await page.locator('.scan-saved').waitFor();assert.match(await page.locator('.saved-result').textContent(),/7 acertos/);await page.locator('#close-scan').click();
+    // ID legível sem cadastro: não sugere aluno nem grava até a escolha manual.
+    await page.evaluate(value=>{window.__cardFixture=value;},unknownId);await page.locator('#scan').click();await page.locator('#start-camera').click();await page.locator('#save-scan').waitFor({timeout:25000});
+    assert.match(await page.locator('.student-id-review').textContent(),/999999/);assert.match(await page.locator('.student-id-review').textContent(),/sem correspondência/);assert.equal(await page.locator('#confirm-student-id').count(),0);assert.equal(await page.locator('#scan-student').inputValue(),'');
+    const beforeManual=(await api('report',undefined,{id:eid})).students.length;await page.setViewportSize({width:390,height:844});assert.ok(await page.evaluate(()=>document.querySelector('#modal').scrollWidth<=innerWidth));await page.screenshot({path:'tests/artifacts/bank-camera-id-manual-mobile.png',fullPage:true});
+    await page.locator('#scan-student').selectOption(String(e.students.find(s=>s.external_id==='5').id));assert.equal((await api('report',undefined,{id:eid})).students.length,beforeManual);await page.locator('#save-scan').click();await page.locator('.scan-saved').waitFor();assert.equal((await api('report',undefined,{id:eid})).students.length,beforeManual+1);await page.locator('#close-scan').click();
     for(const hash of ['bank','compose',`exam/${eid}`,`reports/${eid}`]){
         await go(hash,hash==='bank'?'#bank-new':hash==='compose'?'#compose':hash.startsWith('exam')?'#version-panel':'#report-class');
         for(const width of [320,390,768,1366]){await page.setViewportSize({width,height:900});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),`${hash}: sem overflow em ${width}px`);}

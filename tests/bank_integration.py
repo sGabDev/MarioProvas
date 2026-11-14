@@ -155,6 +155,33 @@ try:
     check(r['complete'] and r['correct']==61,'multipágina retoma a mesma versão e rejeita mistura entre A e B')
     c.call('scan',{'exam_id':multi,'token':mc[0]['token'],'student_id':students[0],'scores':[[1,0,0,0,0]]*60,'quality':quality},expected=409)
     (ART/'bank-multipagina-2-colunas.pdf').write_bytes(c.call('exam_pdf',exam_id=multi,version_id=me['versions'][0]['id'],columns=2,raw=True))
+    # Identificação óptica: servidor revalida os seis dígitos e registra a decisão.
+    ie=finalize(c,prepared(c,ids[:2],classes,versions=1));ic=c.call('cards',exam_id=ie)['cards'][0]
+    def id_scores(value):return [[1 if int(d)==a else 0 for a in range(10)] for d in value]
+    def identity_scan(sid,identity,expected=200):
+        return c.call('scan',{'exam_id':ie,'token':ic['token'],'student_id':sid,'scores':[[1,0,0,0,0]]*2,'quality':quality,'identity':identity},expected=expected)
+    identity_scan(students[0],True,422)
+    identity_scan(students[1],{'scores':id_scores('000000'),'method':'confirmed'},409)
+    identity_scan(students[0],{'scores':id_scores('000000')},422)
+    identity_scan(students[0],{'scores':[[0]*10]*6,'method':'confirmed'},409)
+    identity_scan(students[0],{'scores':[[0]*9]*6,'method':'manual'},422)
+    identity_scan(students[0],{'scores':id_scores('000000'),'method':'confirmed'})
+    identity_scan(students[1],{'scores':id_scores('999999'),'method':'manual'})
+    identity_scan(students[2],{'scores':None,'method':'manual'})
+    identity_scan(students[3],{'scores':id_scores('000004'),'method':'manual'})
+    with sqlite3.connect(tmp/'test.sqlite') as db:
+        got=db.execute('SELECT b.student_id,c.detected_external_id,c.identity_method,c.id_status,c.student_id_scores FROM cards c JOIN booklets b ON b.id=c.booklet_id WHERE b.exam_id=? AND b.student_id IS NOT NULL ORDER BY b.student_id',(ie,)).fetchall()
+        assert len(got)==4 and got[0][1:4]==('000000','confirmed','recognized') and len(json.loads(got[0][4]))==6
+        assert got[1][1:4]==('999999','manual','recognized') and got[2][1:4]==(None,'manual','unreadable') and got[3][1:4]==('000004','manual','recognized')
+        db.execute('INSERT INTO students(school_id,external_id,name,class_id) VALUES(?,?,?,?)',(school,'000004','ID equivalente de teste',classes[0]))
+    db.close()
+    duplicate=finalize(c,prepared(c,ids[:2],classes,versions=1));dc=c.call('cards',exam_id=duplicate)['cards'][0]
+    body={'exam_id':duplicate,'token':dc['token'],'student_id':students[4],'scores':[[1,0,0,0,0]]*2,'quality':quality,'identity':{'scores':id_scores('000004'),'method':'confirmed'}}
+    c.call('scan',body,expected=409);body['identity']['method']='manual';c.call('scan',body)
+    # Duplicata só participa deste teste: não interfere nas sugestões da prova da câmera.
+    with sqlite3.connect(tmp/'test.sqlite') as db:db.execute("UPDATE students SET external_id='TEST-DUPLICATE' WHERE external_id='000004'")
+    db.close()
+    check(True,'ID: zeros à esquerda, confirmação validada, divergência/duplicidade bloqueadas, seleção manual e medições auditadas')
     # Isolamento entre escolas nas novas operações.
     with sqlite3.connect(tmp/'test.sqlite') as db:
         hashed=db.execute('SELECT password FROM users LIMIT 1').fetchone()[0]

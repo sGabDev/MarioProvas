@@ -1,6 +1,6 @@
 import {findFiducials} from './fiducials.mjs?v=ui9';
 import {normalizeIllumination} from './illumination.mjs?v=ui9';
-import { LAYOUT, QR_LAYOUTS, compactLayout, bubblePosition } from './layout.mjs?v=ui9';
+import { LAYOUT, QR_LAYOUTS, compactLayout, identifiedLayout, identifiedA4Layout, bubblePosition, idBubblePosition } from './layout.mjs?v=id1';
 export class ReadError extends Error {
     constructor(code, message, details = {}) {
         super(message);
@@ -115,7 +115,7 @@ export function alignCard(image, qr, layout=LAYOUT) {
     const {width:w,height:h}=image,g=grayscale(image),candidates=findFiducials(g,w,h);
     let match=null;
     // Aceita tanto os cartões novos, com QR maior, quanto os já impressos.
-    for(const q of (layout.format==='compact'?[layout.qr]:QR_LAYOUTS)){
+    for(const q of (layout.format==='a4'?QR_LAYOUTS:[layout.qr])){
         const candidate=locateReferences(candidates,w,h,qr,q,layout);
         if(candidate&&(!match||candidate.error<match.error))match=candidate;
         if(match?.error<.015&&match.found.every(p=>p.fill>.8))break;
@@ -200,17 +200,17 @@ function contourOffset(normalized,bases,radius,samples,origin=0){
     }
     return origin+offset;
 }
-export function readBubbles(normalized, count, alternatives, layout=LAYOUT) {
+export function readBubbles(normalized, count, alternatives, layout=LAYOUT,position=bubblePosition,symbols=null) {
     const samples=sampling(layout.width),{CENTER,RING,PAPER}=samples;
     const scores = [],
         answers = [];
     const uncertain = [];
     for (let i = 0; i < count; i++) {
         const row = [];
-        const bases=Array.from({length:alternatives},(_,a)=>{const p=bubblePosition(i,a,layout);return p.y*layout.width+p.x;});
+        const bases=Array.from({length:alternatives},(_,a)=>{const p=position(i,a,layout);return p.y*layout.width+p.x;});
         const adjustment=contourOffset(normalized,bases,3,samples);
         for (let a = 0; a < alternatives; a++) {
-            const p = bubblePosition(i, a,layout);
+            const p = position(i, a,layout);
             const base=p.y*layout.width+p.x+contourOffset(normalized,[p.y*layout.width+p.x],1,samples,adjustment);
             let bg=0;for(const offset of PAPER)bg+=normalized[base+offset];
             const paper=bg/PAPER.length,threshold = Math.min(175, paper - 65),weakThreshold=paper-28;
@@ -234,14 +234,14 @@ export function readBubbles(normalized, count, alternatives, layout=LAYOUT) {
             if (score > 0.2 && score < 0.44) uncertain.push({question:i+1,alternative:String.fromCharCode(65+a),score});
         }
         scores.push(row);
-        const m = row.flatMap((s, a) => (s >= 0.44 ? [String.fromCharCode(65 + a)] : []));
+        const m = row.flatMap((s, a) => (s >= 0.44 ? [symbols?.[a]??String.fromCharCode(65 + a)] : []));
         answers.push(m);
     }
     if (uncertain.length)
         throw new ReadError(
             'ambiguous',
             `${uncertain.length} marcação(ões) ambígua(s). Aproxime a folha, confira o foco e reforce o preenchimento se necessário.`,
-            {uncertain},
+            {uncertain,scores},
         );
     return {
         scores,
@@ -250,15 +250,23 @@ export function readBubbles(normalized, count, alternatives, layout=LAYOUT) {
         multiple: answers.filter((a) => a.length > 1).length,
     };
 }
+export function readStudentId(normalized,layout){
+    if(!layout.idGrid)return {status:'legacy',value:null,scores:null};
+    try{
+        const r=readBubbles(normalized,6,10,layout,idBubblePosition,Array.from({length:10},(_,i)=>String(i)));
+        const status=r.multiple?'multiple':r.blank===6?'blank':r.blank?'incomplete':'recognized';
+        return {status,value:status==='recognized'?r.answers.map(a=>a[0]).join(''):null,scores:r.scores};
+    }catch(error){return {status:error.code==='ambiguous'?'ambiguous':'unreadable',value:null,scores:error.details?.scores||null};}
+}
 export function readCard(image, qr, count, alternatives) {
     let failure=null;
-    const priority=error=>['ambiguous','resolution','print','shadow'].includes(error.code)?3:['blur','light','distance'].includes(error.code)?2:1;
+    const priority=error=>['ambiguous','resolution'].includes(error.code)?4:['print','shadow'].includes(error.code)?3:['blur','light','distance'].includes(error.code)?2:1;
     // O QR permanece um identificador opaco. As quatro marcas e os contornos
     // distinguem o compacto e os formatos antigos, sem alterar os cadastros.
-    for(const layout of [compactLayout(Number(count),Number(alternatives)),LAYOUT]){
+    for(const layout of [identifiedLayout(Number(count),Number(alternatives)),compactLayout(Number(count),Number(alternatives)),identifiedA4Layout(),LAYOUT]){
         try{
             const aligned=alignCard(image,qr,layout);
-            try{return {...aligned,...readBubbles(aligned.normalized,count,alternatives,layout)};}
+            try{return {...aligned,...readBubbles(aligned.normalized,count,alternatives,layout),studentId:readStudentId(aligned.normalized,layout)};}
             catch(error){
                 error.details={...error.details,markers:aligned.markers,width:image.width,height:image.height,layout};
                 if(error.code==='ambiguous'){

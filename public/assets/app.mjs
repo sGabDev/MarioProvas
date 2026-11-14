@@ -6,7 +6,7 @@ import {cardManagement} from './cards-view.mjs?v=bank1';
 import {buildAudience} from './audience.mjs';
 import {bankView,composeView,versionPanel,bindVersionPanel} from './bank-view.mjs?v=bank3';
 import { escapeHtml as esc } from './layout.mjs?v=ui9';
-import { openScanner, stopScanner } from './scanner.mjs?v=bank1';
+import { openScanner, stopScanner } from './scanner.mjs?v=id1';
 const $ = (s, root = document) => root.querySelector(s),
     $$ = (s, root = document) => [...root.querySelectorAll(s)];
 let state = {},

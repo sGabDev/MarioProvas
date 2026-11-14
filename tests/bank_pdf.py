@@ -11,7 +11,8 @@ for name,count in [('bank-prova-1-colunas.pdf',8),('bank-prova-2-colunas.pdf',8)
     assert 'GABARITO' not in text and '(correta)' not in text
     assert 'CAPA - VERSÃO ' in pdf[0].get_text() and 'Cartão-resposta' in pdf[0].get_text()
     assert not re.search(r'Questão \d+ - ',pdf[0].get_text()),'A primeira folha deve ser apenas capa/cartão'
-    assert re.search(r'Questão \d+ - ',pdf[1].get_text()),'As questões começam depois da capa'
+    first_question=next(i for i,p in enumerate(pdf) if re.search(r'Questão \d+ - ',p.get_text()))
+    assert first_question>=1 and all('CAPA - VERSÃO ' in pdf[i].get_text() for i in range(first_question)), 'As questões começam depois das capas/cartões'
     if count==8:assert any(page.get_images() for page in pdf),'Imagem da questão deve estar no PDF'
     if count==61:assert '(continuação)' in text,'Enunciado extenso deve continuar em outra coluna/página'
     for i,page in enumerate(pdf):
@@ -23,16 +24,19 @@ for name,count in [('bank-prova-1-colunas.pdf',8),('bank-prova-2-colunas.pdf',8)
         page.get_pixmap(matrix=pymupdf.Matrix(1.3,1.3)).save(root/(pathlib.Path(name).stem+f'-p{i+1}.png'))
     print('OK:',name,len(pdf),'página(s), questões completas e texto dentro da página')
     if name in ['bank-prova-2-colunas.pdf','bank-multipagina-2-colunas.pdf']:
-        page=pdf[0];markers=[]
-        for path in page.get_drawings():
-            if path.get('fill')!=(0,0,0):continue
-            for item in path['items']:
-                if item[0]=='re' and abs(item[1].width-4*72/25.4)<.15 and abs(item[1].height-4*72/25.4)<.15:markers.append(item[1])
-        assert len(markers)==(4 if count==8 else 8),'Cada bloco precisa das quatro marcas originais de 4 mm'
-        for start in range(0,len(markers),4):
-            group=markers[start:start+4];clip=pymupdf.Rect(min(r.x0 for r in group)-12,min(r.y0 for r in group)-12,max(r.x1 for r in group)+12,max(r.y1 for r in group)+12)
-            filename='bank-cover-b-card.png' if count==8 else f'bank-cover-multi-{start//4+1}.png'
-            page.get_pixmap(matrix=pymupdf.Matrix(3,3),clip=clip).save(root/filename)
+        block=0
+        for page in list(pdf)[:first_question]:
+            markers=[]
+            for path in page.get_drawings():
+                if path.get('fill')!=(0,0,0):continue
+                for item in path['items']:
+                    if item[0]=='re' and abs(item[1].width-4*72/25.4)<.15 and abs(item[1].height-4*72/25.4)<.15:markers.append(item[1])
+            assert len(markers)%4==0 and markers,'Cada bloco precisa das quatro marcas originais de 4 mm'
+            for start in range(0,len(markers),4):
+                block+=1;group=markers[start:start+4];clip=pymupdf.Rect(min(r.x0 for r in group)-12,min(r.y0 for r in group)-12,max(r.x1 for r in group)+12,max(r.y1 for r in group)+12)
+                filename='bank-cover-b-card.png' if count==8 else f'bank-cover-multi-{block}.png'
+                page.get_pixmap(matrix=pymupdf.Matrix(3,3),clip=clip).save(root/filename)
+        assert block==(1 if count==8 else 2)
 pdf=pymupdf.open(root/'bank-gabaritos.pdf')
 for i,page in enumerate(pdf):
     label=chr(65+i);text=page.get_text();assert 'VERSÃO '+label in text and 'Versão '+label+' | Página' in text

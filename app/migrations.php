@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 function migrate(PDO $db): void {
-    if ((int)$db->query('PRAGMA user_version')->fetchColumn() >= 4) return;
+    if ((int)$db->query('PRAGMA user_version')->fetchColumn() >= 5) return;
     $db->exec('BEGIN IMMEDIATE');
     try {
         if ((int)$db->query('PRAGMA user_version')->fetchColumn() < 1) {
@@ -65,6 +65,11 @@ function migrate(PDO $db): void {
                 foreach($definitions as $name=>$definition)if(!in_array($name,$known,true))$db->exec('ALTER TABLE '.$table.' ADD COLUMN '.$name.' '.$definition);
             }
             $db->exec('PRAGMA user_version=4');
+        }
+        if ((int)$db->query('PRAGMA user_version')->fetchColumn() < 5) {
+            $known=array_column($db->query('PRAGMA table_info(cards)')->fetchAll(),'name');
+            foreach(['student_id_scores','detected_external_id','identity_method','id_status'] as $name)if(!in_array($name,$known,true))$db->exec('ALTER TABLE cards ADD COLUMN '.$name.' TEXT');
+            $db->exec('PRAGMA user_version=5');
         }
         $db->exec('COMMIT');
     } catch (Throwable $e) { $db->exec('ROLLBACK'); throw $e; }

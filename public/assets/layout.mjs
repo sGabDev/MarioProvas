@@ -13,13 +13,30 @@ export function compactLayout(count,alternatives=5){
     markers:[{x:20,y:20},{x:width-20,y:20},{x:width-20,y:height-20},{x:20,y:height-20}],qr:{x:width-152,y:18,size:104},
     grid:{columns,rows,columnWidth,offsetX:(width-columns*columnWidth-64)/2,top:156,pitch:28}};
 }
+export function identifiedLayout(count,alternatives=5){
+  // O desenho anterior permanece disponível para cartões já impressos.
+  compactLayout(count,alternatives);
+  const columnWidth=44+alternatives*28;let best=null;
+  for(let columns=1;columns<=4;columns++){
+    const rows=Math.ceil(count/columns);if(rows>15)continue;
+    const width=Math.max(432,columns*columnWidth+64),height=420+(rows-1)*28+42;
+    if(!best||width*height<best.width*best.height)best={columns,rows,width,height};
+  }
+  const {width,height,columns,rows}=best;
+  return {format:'compact-id',width,height,widthMm:width*.2,heightMm:height*.2,markerSize:20,perPage:60,
+    markers:[{x:20,y:20},{x:width-20,y:20},{x:width-20,y:height-20},{x:20,y:height-20}],qr:{x:width-152,y:18,size:104},
+    grid:{columns,rows,columnWidth,offsetX:(width-columns*columnWidth-64)/2,top:420,pitch:28},idGrid:{x:66,y:116,pitch:28,writeTop:68}};
+}
+export function identifiedA4Layout(){return {...LAYOUT,format:'a4-id',qr:QR_LAYOUTS[0],answerTop:432,answerPitch:32,idGrid:{x:66,y:128,pitch:28,writeTop:80}};}
+export function idBubblePosition(column,digit,layout){const g=layout.idGrid;return {x:g.x+column*g.pitch,y:g.y+digit*g.pitch,r:10};}
 export function bubblePosition(index,alternative,layout=LAYOUT){
   if(layout.grid){const g=layout.grid;return {x:78+g.offsetX+Math.floor(index/g.rows)*g.columnWidth+alternative*28,y:g.top+(index%g.rows)*g.pitch,r:10};}
-  return {x:116+Math.floor(index/20)*236+alternative*32,y:328+(index%20)*34,r:10};
+  return {x:116+Math.floor(index/20)*236+alternative*32,y:(layout.answerTop||328)+(index%20)*(layout.answerPitch||34),r:10};
 }
 export function escapeHtml(value){return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 export function cardSvg(card,exam,questions,qrFactory){
   if(typeof qrFactory!=='function')throw Error('Gerador de QR indisponível. Atualize a página e confira se todos os arquivos foram enviados.');
+  if(card.layoutVersion===4||card.layoutVersion===5)return compactCardSvg(card,exam,questions,qrFactory,card.layoutVersion===4?identifiedLayout(Number(card.question_count),Number(exam.alternatives)):identifiedA4Layout());
   if(card.layoutVersion===3)return compactCardSvg(card,exam,questions,qrFactory);
   const qr=qrFactory(0,'M');qr.addData(card.token);qr.make();const n=qr.getModuleCount(),geometry=QR_LAYOUTS[card.layoutVersion===1?1:0];const mod=geometry.size/n;
   let svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1120" role="img" aria-label="Cartão-resposta" style="font-family:Arial,sans-serif"><rect width="800" height="1120" fill="white"/><g fill="black">`;
@@ -34,14 +51,24 @@ export function cardSvg(card,exam,questions,qrFactory){
   }
   svg+='</svg>';return svg;
 }
-function compactCardSvg(card,exam,questions,qrFactory){
-  const l=compactLayout(Number(card.question_count),Number(exam.alternatives)),qr=qrFactory(0,'M');qr.addData(card.token);qr.make();
+function compactCardSvg(card,exam,questions,qrFactory,layout=null){
+  const l=layout||compactLayout(Number(card.question_count),Number(exam.alternatives)),qr=qrFactory(0,'M');qr.addData(card.token);qr.make();
   const n=qr.getModuleCount(),mod=l.qr.size/n,q=l.qr;
   let svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${l.width} ${l.height}" width="${l.widthMm}mm" height="${l.heightMm}mm" role="img" aria-label="Cartão-resposta compacto" style="font-family:Arial,sans-serif"><rect width="${l.width}" height="${l.height}" fill="white"/><g fill="black">`;
   for(const p of l.markers)svg+=`<rect x="${p.x-10}" y="${p.y-10}" width="20" height="20"/>`;
   svg+=`</g><rect x="${q.x-4*mod}" y="${q.y-4*mod}" width="${q.size+8*mod}" height="${q.size+8*mod}" fill="white"/><g fill="black">`;
   for(let y=0;y<n;y++)for(let x=0;x<n;x++)if(qr.isDark(y,x))svg+=`<rect x="${q.x+x*mod}" y="${q.y+y*mod}" width="${mod+.015}" height="${mod+.015}"/>`;
   svg+='</g>';
+  if(l.idGrid){
+    const g=l.idGrid;
+    svg+=`<text x="${g.x-14}" y="${g.writeTop-20}" font-size="13" fill="black">ID / Matrícula (6 dígitos)</text>`;
+    for(let col=0;col<6;col++){
+      svg+=`<rect x="${g.x+col*g.pitch-14}" y="${g.writeTop}" width="28" height="24" fill="white" stroke="#555" stroke-width="1"/>`;
+      for(let digit=0;digit<10;digit++){const p=idBubblePosition(col,digit,l);svg+=`<circle cx="${p.x}" cy="${p.y}" r="10" stroke="black" stroke-width="1.5" fill="white"/><text x="${p.x}" y="${p.y+3.5}" font-size="9" text-anchor="middle" fill="#aaa">${digit}</text>`;}
+    }
+    const tx=l.format==='a4-id'?300:250;
+    ['Marque um dígito','por coluna.','Complete com zeros','à esquerda.'].forEach((line,i)=>{svg+=`<text x="${tx}" y="${170+i*22}" font-size="12" fill="#333">${line}</text>`;});
+  }
   for(let i=0;i<card.question_count;i++){
     const p=bubblePosition(i,0,l);svg+=`<text x="${p.x-23}" y="${p.y+4}" font-size="12" text-anchor="end">${card.start_number+i}</text>`;
     for(let a=0;a<exam.alternatives;a++){const b=bubblePosition(i,a,l);svg+=`<circle cx="${b.x}" cy="${b.y}" r="10" stroke="black" stroke-width="1.5" fill="white"/><text x="${b.x}" y="${b.y+3.5}" font-size="9" text-anchor="middle" fill="#aaa">${String.fromCharCode(65+a)}</text>`;}
