@@ -76,7 +76,7 @@ novo; as novas também usam a cópia preservada do conteúdo.
 Na tela da prova, a tabela **Prova e versões** oferece, para cada versão:
 
 - **Ver questões**: conferência do conteúdo salvo.
-- **Baixar PDF**: começa com a **capa e o cartão-resposta da versão**. As questões
+- **Baixar PDF**: começa com uma **capa em branco, apenas com o cartão-resposta centralizado**, ou com a capa personalizada escolhida. As questões
   começam na folha seguinte, com a quantidade de colunas escolhida na criação,
   imagens, cabeçalho, duração e paginação. Se quiser uma impressão diferente,
   também pode ajustar as colunas acima da tabela antes de baixar. Questões
@@ -99,9 +99,8 @@ O sistema identifica o cartão apresentado; não fotografa o caderno de questõe
 para inferir qual caderno foi entregue ao aluno.
 
 Para mais de 60 questões, imprima todos os blocos do modelo da mesma versão.
-Os PDFs das provas já incluem esses blocos na capa. Se os blocos não couberem
-com as dimensões físicas corretas, o sistema acrescenta folhas de capa para
-eles antes das questões. As bolhas e as referências não são reduzidas para
+Os PDFs das provas incluem cada bloco em uma folha de capa própria,
+centralizado e nas dimensões físicas corretas, antes das questões. As bolhas e as referências não são reduzidas para
 forçar todos os cartões a caberem em uma folha. Não é necessário anexar o PNG
 manualmente ao PDF gerado pelo sistema.
 O PNG conserva o formato limpo da integração anterior: ao inserir na capa,
@@ -160,6 +159,59 @@ anulação na própria prova** continua permitida pelo fluxo anterior e recalcul
 os resultados de todas as versões pela identidade da questão. Não altera os
 enunciados, ordens, QR codes ou medições já lidas.
 
+## Duas colunas, imagens e capa personalizada
+
+Em **Montar prova**, escolha **2 colunas**. Uma linha vertical separa as duas
+colunas de questões. Questões com imagem usam **a largura inteira da página**,
+incluindo enunciado, imagem e alternativas, sem linha atravessando a questão.
+A imagem mantém a proporção, com largura máxima de 14,5 cm e altura de 9 cm.
+
+**Agrupar questões com imagem ao final** vem ativado. As questões sem imagem
+ocupam as duas colunas e depois as questões com imagem seguem juntas em largura
+inteira. O sistema aproveita o espaço restante e coloca várias questões com
+imagem na mesma folha quando couberem; não força uma folha para cada imagem.
+
+O agrupamento **mantém os números e gabaritos de cada versão**. Por exemplo,
+se as questões 2 e 5 tiverem imagem, poderão aparecer juntas ao final, com os
+números 2 e 5. As respostas continuam nas bolhas 2 e 5 do cartão. Não há novo
+sorteio, troca de letras ou alteração das ordens persistidas. As travas conservam
+a numeração no mapa da versão; para manter também a sequência física numérica
+no papel, **desmarque o agrupamento**. Nesse caso, a largura muda conforme a
+questão, preservando a sequência. Em uma coluna, a sequência numérica é mantida.
+A prévia da criação apresenta o agrupamento escolhido.
+
+Sem arquivo enviado, a capa não tem cabeçalho, instruções ou rodapé: só o cartão
+no centro. A versão, o bloco e os números das questões aparecem discretamente
+**dentro do próprio cartão**, além da matrícula e do QR. Para provas acima de
+60 questões, cada bloco fica centralizado em sua própria folha de capa.
+
+Para personalizar:
+
+1. Em **Capa personalizada em PDF**, envie **uma página de até 4 MB**, sem senha.
+   O campo existe na criação e em **Prova e versões**, depois de finalizar.
+2. Prepare preferencialmente um modelo A4 vertical, com o centro livre. O modelo
+   é ajustado à folha A4 sem distorcer. O cartão continua centralizado, em tamanho
+   real, sobre uma área branca opaca que cobre o conteúdo do fundo nessa região.
+   O mesmo fundo é usado para todos os blocos e versões dessa prova.
+3. Use **Conferir capa com cartão** para baixar a prévia com o cartão real da
+   primeira versão. O professor pode conferir o espaço antes de imprimir tudo.
+4. Clique em **Salvar configuração de impressão** para conservar capa, colunas
+   e agrupamento ao reabrir a prova. Os links de download já usam os ajustes
+   selecionados na tela; salvar mantém esses ajustes para os próximos acessos.
+5. **Usar capa em branco** remove a capa personalizada dessa configuração.
+   Escolher outro arquivo permite substituí-la. Confira a prévia e salve.
+
+Os downloads individuais e **todas as versões em um PDF** usam a mesma
+configuração. O gabarito do professor continua separado e não recebe a capa.
+
+O upload prepara o PDF no próprio navegador, incluindo PDFs com compactação
+moderna, e depois valida a importação no servidor. Arquivos protegidos,
+corrompidos ou com mais de uma página são recusados com uma mensagem; a capa
+anterior é preservada. Campos de formulário com aparência pronta são convertidos
+em conteúdo fixo. Converta anotações em desenho/texto da página antes de enviar;
+a importação usa o conteúdo visual estático, sem scripts, links ou formulários
+interativos. A capa fica no SQLite privado e só é acessível à mesma escola.
+
 ## Identificar o aluno pela matrícula/ID
 
 Os cartões novos, tanto no PDF da capa quanto no PNG e no formato A4, incluem
@@ -196,7 +248,7 @@ adicionais podem ocupar outra folha de capa antes das questões.
 
 ## Atualização, dependências e verificação
 
-Preserve `config.php` e `storage/` ao atualizar. A migração v5 é automática e
+Preserve `config.php` e `storage/` ao atualizar. A migração v7 é automática e
 aditiva, sem reinstalação ou importação de dados de demonstração. Faça o backup
 privado habitual antes de atualizar uma instalação em uso. Recarregue com
 **Ctrl+F5**; a PWA usa cache v11 e os recursos alterados têm URLs versionadas.
@@ -205,6 +257,10 @@ O PDF usa tFPDF 1.33 e fontes DejaVu locais, em `app/vendor/tfpdf/`, com suas
 licenças e métricas portáveis. O servidor continua dependendo somente do PHP
 e das extensões já exigidas. Não precisa de Composer, Node, Python ou rede
 para gerar os arquivos. Não é necessário dar escrita à pasta de código.
+A importação da capa usa FPDI 2.6.10, em `app/vendor/fpdi/`, integrado ao tFPDF.
+O navegador carrega pdf-lib 1.17.1 localmente apenas ao enviar uma capa, para
+preparar uma tabela xref compatível. Ambas as dependências têm licença MIT,
+fontes e versões registradas junto aos arquivos; não há CDN em produção.
 O QR nativo do PDF usa a implementação PHP de Kazuhiko Arase, do mesmo projeto
 do gerador JavaScript já utilizado, em `app/vendor/qrcode/`, com licença MIT
 e versão fixada em `SOURCE.txt`. Os cartões são desenhados em vetor no PDF,

@@ -68,7 +68,7 @@ function prepare_bank_exam(array $body): array {
     $u=require_user();$name=text_field($body['name']??'');$date=(string)($body['date']??'');$d=DateTimeImmutable::createFromFormat('!Y-m-d',$date);
     if(!$d||$d->format('Y-m-d')!==$date)fail('Data inválida.');
     $duration=filter_var($body['duration']??null,FILTER_VALIDATE_INT);if($duration===false||$duration<1||$duration>1440)fail('Duração deve ser de 1 a 1440 minutos.');
-    $pdfColumns=filter_var($body['pdf_columns']??1,FILTER_VALIDATE_INT);if(!in_array($pdfColumns,[1,2],true))fail('Escolha uma ou duas colunas para a prova.');
+    $pdfSettings=pdf_settings($body);
     $cids=$body['class_ids']??null;if(!is_array($cids)||!$cids)fail('Selecione as turmas.');$cids=array_values(array_unique(array_map('intval',$cids)));
     foreach($cids as $cid)if(!one('SELECT id FROM classes WHERE id=? AND school_id=?',[$cid,$u['school_id']]))fail('Turma fora da escola.');
     $count=filter_var($body['question_count']??null,FILTER_VALIDATE_INT);if($count===false||$count<1||$count>240)fail('Escolha de 1 a 240 questões.');
@@ -90,7 +90,7 @@ function prepare_bank_exam(array $body): array {
     $groups=array_unique(array_map(fn($q)=>$q['discipline'].' · '.$q['area'],$qs));if(count($groups)>30)fail('Limite de 30 combinações de disciplina e área.');
     $versions=(int)($body['versions']??3);if($versions<1||$versions>26)fail('Escolha entre 1 e 26 versões.');
     $plans=[];for($i=0;$i<$versions;$i++)$plans[chr(65+$i)]=distinct_version_plan($qs,array_values($plans));
-    $draft=['name'=>$name,'date'=>$date,'duration'=>$duration,'pdf_columns'=>$pdfColumns,'class_ids'=>$cids,'alternatives'=>$alt,'questions'=>$qs,'versions'=>$plans];
+    $draft=['name'=>$name,'date'=>$date,'duration'=>$duration]+$pdfSettings+['class_ids'=>$cids,'alternatives'=>$alt,'questions'=>$qs,'versions'=>$plans];
     $nonce=bin2hex(random_bytes(24));$_SESSION['bank_exam_preview']=['nonce'=>$nonce,'school_id'=>$u['school_id'],'user_id'=>$u['id'],'expires'=>time()+7200,'draft'=>$draft];
     return ['nonce'=>$nonce,'draft'=>$draft];
 }
@@ -108,7 +108,7 @@ function finalize_bank_exam(array $body): array {
         $d=$p['draft'];$cids=$d['class_ids'];$marks=implode(',',array_fill(0,count($cids),'?'));
         $classes=rows('SELECT id FROM classes WHERE school_id=? AND id IN ('.$marks.')',array_merge([$u['school_id']],$cids));if(count($classes)!==count($cids))fail('Turmas alteradas. Refaça a prévia.');
         $students=rows('SELECT id,class_id FROM students WHERE school_id=? AND class_id IN ('.$marks.')',array_merge([$u['school_id']],$cids));if(!$students)fail('Importe estudantes nas turmas selecionadas.');
-        query('INSERT INTO exams(school_id,class_id,name,date,alternatives,created_by,duration,pdf_columns) VALUES(?,?,?,?,?,?,?,?)',[$u['school_id'],$cids[0],$d['name'],$d['date'],$d['alternatives'],$u['id'],$d['duration'],$d['pdf_columns']??1]);$eid=(int)db()->lastInsertId();
+        query('INSERT INTO exams(school_id,class_id,name,date,alternatives,created_by,duration,pdf_columns,pdf_group_images,cover_id) VALUES(?,?,?,?,?,?,?,?,?,?)',[$u['school_id'],$cids[0],$d['name'],$d['date'],$d['alternatives'],$u['id'],$d['duration'],$d['pdf_columns']??1,$d['pdf_group_images']??1,$d['cover_id']??null]);$eid=(int)db()->lastInsertId();
         $areas=[];$ids=[];
         foreach($d['questions'] as $i=>$q){
             $key=$q['discipline'].' · '.$q['area'];if(!isset($areas[$key])){query('INSERT INTO areas(exam_id,name,position) VALUES(?,?,?)',[$eid,$key,count($areas)]);$areas[$key]=(int)db()->lastInsertId();}

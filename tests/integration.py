@@ -1,4 +1,4 @@
-"""Testa a API real com o CSV original. Base e sessão exclusivas e descartáveis.
+"""Testa a API real com CSV original ou fixture sintética. Base e sessão exclusivas e descartáveis.
 Não exibe dados de estudantes. Não modifica o CSV nem a base da aplicação.
 Execute primeiro npm run test:omr para gerar medições ópticas de teste.
 """
@@ -10,13 +10,11 @@ CSV=next(ROOT.glob('*.csv'),None)
 if CSV:
     csv_content=CSV.read_bytes();original_hash=hashlib.sha256(csv_content).hexdigest()
 else:
-    # Se o original já não está na pasta, reutiliza somente os cadastros reais
-    # da base local em modo leitura. O arquivo de teste permanece em memória.
-    source=sqlite3.connect('file:'+str((ROOT/'storage/marioprovas.sqlite').resolve().as_posix())+'?mode=ro',uri=True)
+    # Fixture sintética quando não há CSV: funciona também após limpar a escola.
     buffer=io.StringIO();writer=csv.writer(buffer,delimiter=';');writer.writerow(['id','Aluno: Nome','Turma: Nome'])
-    writer.writerows(source.execute('SELECT s.external_id,s.name,c.name FROM students s JOIN classes c ON c.id=s.class_id ORDER BY s.id'))
-    source.close();csv_content=buffer.getvalue().encode('cp1252')
-    original_hash=None
+    writer.writerows([str(100000+i),f'Estudante de teste {i+1:03d}',f'Turma {i%27+1:02d}'] for i in range(885))
+    csv_content=buffer.getvalue().encode('cp1252');original_hash=None
+
 temp=pathlib.Path(tempfile.mkdtemp(prefix='marioprovas-test-')).resolve()
 with socket.socket() as sock:
     sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
@@ -69,9 +67,9 @@ try:
         assert 'javascript' in response.headers['Content-Type'], 'Módulo servido com MIME incorreto'
     check(True,'módulos JavaScript servidos com MIME executável')
     upload=c.call('upload',multipart=multipart(csv_content));mapping=upload['suggested']
-    check(mapping['external_id']=='0' and upload['headers'][int(mapping['name'])]=='Aluno: Nome' and upload['headers'][int(mapping['class_name'])]=='Turma: Nome' and mapping['social_name']=='','mapeamento das colunas reais e ausência de nome social')
+    check(mapping['external_id']=='0' and upload['headers'][int(mapping['name'])]=='Aluno: Nome' and upload['headers'][int(mapping['class_name'])]=='Turma: Nome' and mapping['social_name']=='','mapeamento de colunas e ausência de nome social')
     preview=c.call('preview',{'mapping':mapping})
-    check(preview['counts']=={'ready':885,'invalid':0,'duplicate':0},'prévia do CSV real: 885 prontos, sem duplicidades')
+    check(preview['counts']=={'ready':885,'invalid':0,'duplicate':0},'prévia do CSV de teste: 885 prontos, sem duplicidades')
     dash=c.call('dashboard');check(dash['student_count']==0,'prévia não grava estudantes')
     imported=c.call('import',{'nonce':preview['nonce']});dash=c.call('dashboard')
     check(imported['imported']==885 and dash['student_count']==885 and len(dash['classes'])==27,'importação persistente dos 885 estudantes e 27 turmas')

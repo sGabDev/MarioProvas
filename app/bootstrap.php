@@ -32,7 +32,17 @@ function strval_trim(mixed $v): string { return is_scalar($v) ? trim((string)$v)
 function text_field(mixed $v, int $max=180): string { $v=strval_trim($v); if($v==='' || mb_strlen($v)>$max || preg_match('/[\x00-\x1F]/u',$v)) fail('Campo obrigatório ausente ou inválido.'); return $v; }
 function transaction(callable $fn): mixed { db()->exec('BEGIN IMMEDIATE'); try {$r=$fn();db()->exec('COMMIT');return $r;} catch(Throwable $e){db()->exec('ROLLBACK');throw $e;} }
 function audit(string $event, int $id=0): void { $u=current_user(); query('INSERT INTO audit(school_id,user_id,event,entity_id) VALUES(?,?,?,?)',[$u['school_id'],$u['id'],$event,$id]); }
-function current_user(): ?array { return isset($_SESSION['uid']) ? one('SELECT id,school_id,name,email,role FROM users WHERE id=?',[$_SESSION['uid']]) : null; }
+function user_profile(array $u): array {
+    if(!empty($u['is_operator'])&&$u['role']!=='admin')$u['role']='operator';
+    $u['shifts']=json_decode($u['shifts']??'[]',true)?:[];
+    unset($u['password'],$u['auth_version'],$u['is_operator']);return $u;
+}
+function current_user(): ?array {
+    if(!isset($_SESSION['uid']))return null;
+    $u=one('SELECT id,school_id,name,email,role,phone,knowledge_area,discipline,shifts,status,is_operator,auth_version,profile_revision FROM users WHERE id=?',[$_SESSION['uid']]);
+    if(!$u||$u['status']!=='active'||(int)$u['auth_version']!==(int)($_SESSION['auth_version']??1))return null;
+    return user_profile($u);
+}
 function require_user(): array { $u=current_user(); if(!$u) fail('Entre para continuar.',401); return $u; }
 function with_exam_classes(array $e): array {
     if(isset($e['grading_policy'])&&is_string($e['grading_policy']))$e['grading_policy']=json_decode($e['grading_policy'],true);
@@ -44,6 +54,7 @@ function with_exam_classes(array $e): array {
 function exam(int $id): array { $u=require_user(); $e=one('SELECT * FROM exams WHERE id=? AND school_id=?',[$id,$u['school_id']]); if(!$e) fail('Simulado não encontrado.',404); return with_exam_classes($e); }
 function exam_detail(int $id): array {
     $e=exam($id);
+    $e['cover_name']=$e['cover_id']?(one('SELECT name FROM exam_covers WHERE id=? AND school_id=?',[$e['cover_id'],$e['school_id']])['name']??null):null;
     $e['areas']=rows('SELECT a.*,COUNT(q.id) count FROM areas a JOIN questions q ON q.area_id=a.id WHERE a.exam_id=? GROUP BY a.id ORDER BY a.position',[$id]);
     $e['questions']=rows('SELECT q.*,a.name area FROM questions q JOIN areas a ON a.id=q.area_id WHERE q.exam_id=? ORDER BY q.number',[$id]);
     $e['students']=rows('SELECT s.*,ec.name class_name,en.class_id enrollment_class_id,r.id result_id,b.id booklet_id,b.template_id FROM enrollments en JOIN students s ON s.id=en.student_id JOIN classes ec ON ec.id=en.class_id LEFT JOIN results r ON r.student_id=s.id AND r.exam_id=en.exam_id LEFT JOIN booklets b ON b.student_id=s.id AND b.exam_id=en.exam_id WHERE en.exam_id=? ORDER BY ec.name,s.name',[$id]);

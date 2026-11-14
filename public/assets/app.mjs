@@ -1,10 +1,11 @@
+import {registrationView,teamView as renderTeam} from './accounts-view.mjs?v=accounts1';
 import {initializeUi,setupNavigation,describeModal} from './ui.mjs?v=ui9';
 import {assessmentActions,openKeyEditor,openGradingEditor} from './assessment-view.mjs?v=bank3';
 import {renderReport,individualHtml} from './report-view.mjs?v=bank1';
 const reportFilters=new Map();
 import {cardManagement} from './cards-view.mjs?v=bank1';
 import {buildAudience} from './audience.mjs';
-import {bankView,composeView,versionPanel,bindVersionPanel} from './bank-view.mjs?v=bank3';
+import {bankView,composeView,versionPanel,bindVersionPanel} from './bank-view.mjs?v=print2';
 import { escapeHtml as esc } from './layout.mjs?v=ui9';
 import { openScanner, stopScanner } from './scanner.mjs?v=id1';
 const $ = (s, root = document) => root.querySelector(s),
@@ -126,7 +127,7 @@ function shell(active) {
             .map(([r, l, i]) => `<a class="nav-item ${active === r ? 'active' : ''}" href="#${r}">${icon(i)}${l}</a>`)
             .join(
                 '',
-            )}<div class="nav-label">Organização</div><a class="nav-item ${active === 'import' ? 'active' : ''}" href="#import">${icon('upload')}Importar estudantes</a>${state.user.role === 'admin' ? `<a class="nav-item ${active === 'team' ? 'active' : ''}" href="#team">${icon('shield')}Equipe da escola</a>` : ''}<a class="nav-item ${active === 'help' ? 'active' : ''}" href="#help">${icon('book')}Como usar</a></nav><div class="sidebar-foot"><p><span class="online-dot"></span>Dados salvos no servidor</p><strong>${esc(dash?.school || 'Ambiente escolar')}</strong><p>Conhecer para ensinar melhor.</p></div></aside><button class="nav-backdrop" id="nav-backdrop" type="button" aria-label="Fechar menu" tabindex="-1" hidden></button><div class="workspace"><header class="topbar"><button class="quiet mobile-menu" id="menu" aria-label="Abrir ou fechar navegação" aria-expanded="false" aria-controls="navigation">${icon('menu')}</button><span class="breadcrumb">Escola / <strong>${{ home: 'Visão geral', exams: 'Simulados', bank: 'Banco de questões', compose: 'Montar prova', classes: 'Turmas', reports: 'Relatórios', import: 'Importação', team: 'Equipe', help: 'Ajuda' }[active] || 'Simulado'}</strong></span><div class="account"><div class="avatar">${esc(state.user.name.slice(0, 1).toUpperCase())}</div><span>${esc(state.user.name)}</span><button id="logout" class="quiet" aria-label="Sair da conta">${icon('logout')}</button></div></header><main class="main" id="main" tabindex="-1"><div class="loading">Carregando…</div></main></div></div>`;
+            )}<div class="nav-label">Organização</div><a class="nav-item ${active === 'import' ? 'active' : ''}" href="#import">${icon('upload')}Importar estudantes</a>${['admin','operator'].includes(state.user.role) ? `<a class="nav-item ${active === 'team' ? 'active' : ''}" href="#team">${icon('shield')}Equipe da escola</a>` : ''}<a class="nav-item ${active === 'help' ? 'active' : ''}" href="#help">${icon('book')}Como usar</a></nav><div class="sidebar-foot"><p><span class="online-dot"></span>Dados salvos no servidor</p><strong>${esc(dash?.school || 'Ambiente escolar')}</strong><p>Conhecer para ensinar melhor.</p></div></aside><button class="nav-backdrop" id="nav-backdrop" type="button" aria-label="Fechar menu" tabindex="-1" hidden></button><div class="workspace"><header class="topbar"><button class="quiet mobile-menu" id="menu" aria-label="Abrir ou fechar navegação" aria-expanded="false" aria-controls="navigation">${icon('menu')}</button><span class="breadcrumb">Escola / <strong>${{ home: 'Visão geral', exams: 'Simulados', bank: 'Banco de questões', compose: 'Montar prova', classes: 'Turmas', reports: 'Relatórios', import: 'Importação', team: 'Equipe', help: 'Ajuda' }[active] || 'Simulado'}</strong></span><div class="account"><div class="avatar">${esc(state.user.name.slice(0, 1).toUpperCase())}</div><span>${esc(state.user.name)}</span><button id="logout" class="quiet" aria-label="Sair da conta">${icon('logout')}</button></div></header><main class="main" id="main" tabindex="-1"><div class="loading">Carregando…</div></main></div></div>`;
     setupNavigation();
     $('#logout').onclick = async () => {
         stopScanner();
@@ -141,7 +142,7 @@ function renderAuth() {
     stopScanner();
     const setup = !state.installed;
     $('#app').innerHTML =
-        `<main class="auth-wrap" id="main"><section class="auth-card"><a class="brand" href="./"><img src="assets/icon.svg" alt="">MarioProvas</a><div class="eyebrow">Avaliar. Compreender. Avançar.</div><h1>${setup ? 'Prepare sua escola' : 'Bom ter você por aqui.'}</h1><p>${setup ? 'Cadastre a primeira conta com a chave configurada pelo responsável pela instalação.' : 'Entre para organizar suas avaliações e acompanhar a aprendizagem.'}</p><form id="auth">${setup ? field('key', 'Chave de instalação', 'password', 'required autocomplete="off"') + field('school', 'Nome da escola', 'text', 'required maxlength="180"') + field('name', 'Seu nome', 'text', 'required maxlength="180"') : ''}${field('email', 'E-mail', 'email', 'required autocomplete="username"')}${field('password', 'Senha', 'password', `required ${setup ? 'minlength="12"' : ''} maxlength="200" autocomplete="${setup ? 'new-password' : 'current-password'}"`)}<button type="submit">${setup ? 'Concluir instalação' : 'Entrar no MarioProvas'}${icon('arrow')}</button></form><details class="install-help"><summary>Instalar no celular</summary><p>No Android, use “Instalar app” no menu do navegador. No iPhone/iPad, abra no Safari, toque em Compartilhar e depois em “Adicionar à Tela de Início”. É necessário HTTPS e conexão para salvar dados.</p></details><p class="small muted auth-privacy">Acesso restrito à equipe autorizada da escola.</p></section></main>`;
+        `<main class="auth-wrap" id="main"><section class="auth-card"><a class="brand" href="./"><img src="assets/icon.svg" alt="">MarioProvas</a><div class="eyebrow">Avaliar. Compreender. Avançar.</div><h1>${setup ? 'Prepare sua escola' : 'Bom ter você por aqui.'}</h1><p>${setup ? 'Cadastre a primeira conta com a chave configurada pelo responsável pela instalação.' : 'Entre para organizar suas avaliações e acompanhar a aprendizagem.'}</p><form id="auth">${setup ? field('key', 'Chave de instalação', 'password', 'required autocomplete="off"') + field('school', 'Nome da escola', 'text', 'required maxlength="180"') + field('name', 'Seu nome', 'text', 'required maxlength="180"') : ''}${field('email', 'E-mail', 'email', 'required autocomplete="username"')}${field('password', 'Senha', 'password', `required ${setup ? 'minlength="12"' : ''} maxlength="200" autocomplete="${setup ? 'new-password' : 'current-password'}"`)}<button type="submit">${setup ? 'Concluir instalação' : 'Entrar no MarioProvas'}${icon('arrow')}</button></form>${!setup?'<p><a class="button secondary button-block" href="#register">Criar minha conta</a></p>':''}<details class="install-help"><summary>Instalar no celular</summary><p>No Android, use “Instalar app” no menu do navegador. No iPhone/iPad, abra no Safari, toque em Compartilhar e depois em “Adicionar à Tela de Início”. É necessário HTTPS e conexão para salvar dados.</p></details><p class="small muted auth-privacy">Acesso restrito à equipe autorizada da escola.</p></section></main>`;
     $('#auth').onsubmit = async (ev) => {
         ev.preventDefault();
         const form = ev.currentTarget,
@@ -171,7 +172,7 @@ async function route() {
     if ($('#modal').open) $('#modal').close();
     const version = ++routeVersion;
     if (!state.user) {
-        renderAuth();
+        if(state.installed&&location.hash==='#register')await registrationView({root:$('#app'),api});else renderAuth();
         return;
     }
     const [view = 'home', id] = location.hash.slice(1).split('/'),
@@ -612,25 +613,7 @@ async function showIndividual(id){
     try{const r=await api('individual',undefined,{id});openModal(individualHtml(r));}catch(error){toast(error.message);}
 }
 async function teamView() {
-    const users = await api('team');
-    $('#main').innerHTML =
-        head(
-            'Acesso e responsabilidade',
-            'Equipe da escola',
-            'Os professores cadastrados acessam as turmas e os resultados desta escola.',
-        ) +
-        `<div class="grid-two"><section class="card"><h2>Usuários autorizados</h2><div class="table-wrap"><table><thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th></tr></thead><tbody>${users.map((u) => `<tr><td>${esc(u.name)}</td><td>${esc(u.email)}</td><td>${u.role === 'admin' ? 'Administrador' : 'Professor'}</td></tr>`).join('')}</tbody></table></div></section><section class="card"><h2>Adicionar professor</h2><p class="small muted">Use uma senha inicial forte e compartilhe-a por um canal seguro. Somente administradores criam contas.</p><form id="team-form">${field('name', 'Nome', 'text', 'required maxlength="180"')}${field('email', 'E-mail', 'email', 'required autocomplete="off"')}${field('password', 'Senha inicial', 'password', 'required minlength="12" maxlength="200" autocomplete="new-password"')}<button type="submit">Criar acesso</button></form></section></div>`;
-    $('#team-form').onsubmit = async (ev) => {
-        ev.preventDefault();
-        const form = ev.currentTarget;
-        try {
-            const r = await api('team_create', Object.fromEntries(new FormData(form)));
-            toast(r.message);
-            await teamView();
-        } catch (e) {
-            errorAt(form, e.message);
-        }
-    };
+    await renderTeam({root:$('#main'),api,toast,openModal,user:state.user,updateUser:user=>{state.user=user;if($('.account span'))$('.account span').textContent=user.name;}});
 }
 function helpView() {
     $('#main').innerHTML =
@@ -659,8 +642,7 @@ initializeUi();
 try {
     state = await api('state');
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
-    if (state.user) await route();
-    else renderAuth();
+    await route();
 } catch (e) {
     $('#app').innerHTML =
         `<main class="auth-wrap"><section class="auth-card"><h1>Não foi possível iniciar</h1><p>${esc(e.message)}</p><a class="button" href="./">Tentar novamente</a></section></main>`;

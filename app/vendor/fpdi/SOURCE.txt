@@ -1,0 +1,4 @@
+Setasign FPDI v2.6.10
+https://api.github.com/repos/Setasign/FPDI/zipball/v2.6.10
+Archive SHA-256: d0753eaf8000185898e09a4c0d302f9061c36c48863510e39252774bc52d26fb
+MIT license. Unmodified upstream src/. tFPDF integration.

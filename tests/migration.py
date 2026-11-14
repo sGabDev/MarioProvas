@@ -20,7 +20,7 @@ php=os.environ.get('PHP_BIN',r'C:\xampp\php\php.exe' if os.name=='nt' else 'php'
 try:
     for _ in range(2):
         p=subprocess.run([php,'-r',"require 'app/bootstrap.php'; echo db()->query('PRAGMA user_version')->fetchColumn();"],cwd=root,env=env,capture_output=True,text=True,check=True)
-        assert p.stdout=='5','Migração deve chegar à versão 5 e ser idempotente'
+        assert p.stdout=='7','Migração deve chegar à versão 7 e ser idempotente'
     copy=sqlite3.connect(target)
     assert before==snapshot(copy),'A migração deve preservar todas as linhas e colunas originais'
     assert copy.execute('SELECT COUNT(*) FROM exams e WHERE NOT EXISTS(SELECT 1 FROM exam_classes ec WHERE ec.exam_id=e.id AND ec.class_id=e.class_id)').fetchone()[0]==0
@@ -29,7 +29,11 @@ try:
     # Resultado legado em cópia: branco/múltiplas deixam de ser anuladas,
     # mas as marcas e evidências originais devem sobreviver à atualização.
     school,uid=copy.execute('SELECT school_id,id FROM users LIMIT 1').fetchone()
-    sid,cid=copy.execute('SELECT id,class_id FROM students WHERE school_id=? LIMIT 1',(school,)).fetchone()
+    participant=copy.execute('SELECT id,class_id FROM students WHERE school_id=? LIMIT 1',(school,)).fetchone()
+    if participant:sid,cid=participant
+    else:
+        cid=copy.execute("INSERT INTO classes(school_id,name) VALUES(?,'Turma de teste de migração')",(school,)).lastrowid
+        sid=copy.execute("INSERT INTO students(school_id,external_id,name,class_id) VALUES(?,'TEST-MIGRATION','Participante de teste',?)",(school,cid)).lastrowid
     eid=copy.execute("INSERT INTO exams(school_id,class_id,name,date,alternatives,created_by) VALUES(?,?,'MIGRAÇÃO ISOLADA','2026-11-11',5,?)",(school,cid,uid)).lastrowid
     aid=copy.execute("INSERT INTO areas(exam_id,name,position) VALUES(?,'Verificação',0)",(eid,)).lastrowid
     qs=[copy.execute('INSERT INTO questions(exam_id,area_id,number,answer) VALUES(?,?,?,?)',(eid,aid,i+1,'A')).lastrowid for i in range(3)]
@@ -49,7 +53,7 @@ try:
     assert copy.execute('SELECT token,scores,scanned_at FROM cards WHERE booklet_id=?',(bid,)).fetchone()==(token,'[[1,0],[0,0],[1,1]]','2026-11-11 10:00:00')
     assert copy.execute('PRAGMA foreign_key_check').fetchall()==[]
     copy.close()
-    print('OK: migração v5 idempotente, cadastros/tokens/marcações preservados, resultado legado recalculado (branco/múltiplas como erros), integridade referencial válida em cópia privada.')
+    print('OK: migração v7 idempotente, cadastros/tokens/marcações preservados, resultado legado recalculado (branco/múltiplas como erros), integridade referencial válida em cópia privada.')
 finally:
     assert temp.parent==pathlib.Path(tempfile.gettempdir()).resolve() and temp.name.startswith('marioprovas-upgrade-')
     for item in temp.iterdir():

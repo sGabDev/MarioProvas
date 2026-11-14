@@ -8,12 +8,14 @@ require dirname(__DIR__).'/app/assessment.php';
 require dirname(__DIR__).'/app/reports.php';
 require dirname(__DIR__).'/app/question-bank.php';
 require dirname(__DIR__).'/app/question-images.php';
+require dirname(__DIR__).'/app/exam-covers.php';
+require dirname(__DIR__).'/app/accounts.php';
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, private');header('X-Content-Type-Options: nosniff');header('Referrer-Policy: same-origin');
 start_session();
 try {
     $action=$_GET['action']??'state';$method=$_SERVER['REQUEST_METHOD'];
-    $write=['login','logout','setup','upload','preview','import','student_update','class_update','create_exam','generate_cards','scan','team_create','update_key','update_grading','bank_save','bank_archive','prepare_bank_exam','finalize_bank_exam','add_versions','question_image_upload'];
+    $write=['login','register','logout','setup','upload','preview','import','student_update','class_update','create_exam','generate_cards','scan','team_create','team_update','team_review','update_key','update_grading','bank_save','bank_archive','prepare_bank_exam','finalize_bank_exam','add_versions','question_image_upload','exam_cover_upload','save_pdf_settings'];
     if(in_array($action,$write,true)){
         if($method!=='POST')fail('Método não permitido.',405);
         if(!hash_equals($_SESSION['csrf'],$_SERVER['HTTP_X_CSRF_TOKEN']??''))fail('Sessão expirada. Atualize a página.',403);
@@ -21,6 +23,10 @@ try {
     $body=[];if(str_contains($_SERVER['CONTENT_TYPE']??'','application/json')){if((int)($_SERVER['CONTENT_LENGTH']??0)>2*1024*1024)fail('Requisição muito grande.',413);$body=json_decode(file_get_contents('php://input'),true,512,JSON_THROW_ON_ERROR);if(!is_array($body))fail('Dados inválidos.');}
     if($action==='state') {
         $user=current_user();$out=['user'=>$user,'csrf'=>$_SESSION['csrf'],'installed'=>(bool)one('SELECT id FROM users LIMIT 1')];
+    } elseif($action==='registration_schools') {
+        $out=registration_schools();
+    } elseif($action==='register') {
+        $out=register_account($body);
     } elseif($action==='setup') {
         if(!$config['setup_key'] || strlen($config['setup_key'])<32 || !hash_equals($config['setup_key'],strval_trim($body['key']??'')))fail('Chave de instalação inválida. Consulte o README.',403);
         $out=transaction(function()use($body){if(one('SELECT id FROM users LIMIT 1'))fail('Instalação já concluída.',409);
@@ -33,10 +39,14 @@ try {
         if(!$user || !password_verify($password,$user['password'])){
             query('INSERT INTO login_attempts(key,attempts,started) VALUES(?,1,?) ON CONFLICT(key) DO UPDATE SET attempts=CASE WHEN started<? THEN 1 ELSE attempts+1 END,started=CASE WHEN started<? THEN excluded.started ELSE started END',[$key,time(),time()-900,time()-900]);fail('E-mail ou senha incorretos.',401);
         }
-        query('DELETE FROM login_attempts WHERE key=?',[$key]);session_regenerate_id(true);$_SESSION['uid']=$user['id'];$_SESSION['csrf']=bin2hex(random_bytes(32));$out=['user'=>current_user(),'csrf'=>$_SESSION['csrf']];
+        if($user['status']!=='active')fail(['pending'=>'Seu cadastro aguarda aprovação de um administrador ou operador.','rejected'=>'Seu cadastro não foi autorizado. Procure o administrador da escola.','blocked'=>'Seu acesso está suspenso. Procure o administrador ou operador.'][$user['status']]??'Acesso não autorizado.',403);
+        query('DELETE FROM login_attempts WHERE key=?',[$key]);session_regenerate_id(true);$_SESSION=['uid'=>$user['id'],'auth_version'=>(int)$user['auth_version'],'csrf'=>bin2hex(random_bytes(32)),'last'=>time()];$out=['user'=>current_user(),'csrf'=>$_SESSION['csrf']];
     } else {
         $u=require_user();$school=(int)$u['school_id'];
         switch($action){
+            case 'exam_cover_upload':$out=upload_exam_cover();break;
+            case 'exam_cover':output_exam_cover(strval_trim($_GET['id']??''));
+            case 'save_pdf_settings':$out=save_pdf_settings($body);break;
             case 'question_image_upload':$out=upload_question_image();break;
             case 'question_image':output_question_image(strval_trim($_GET['id']??''));
             case 'bank_list':$out=bank_list($_GET);break;
@@ -47,7 +57,9 @@ try {
             case 'finalize_bank_exam':$out=finalize_bank_exam($body);break;
             case 'add_versions':$out=add_exam_versions((int)($body['exam_id']??0),(int)($body['count']??1));break;
             case 'version_content':$out=version_content((int)($_GET['exam_id']??0),(int)($_GET['version_id']??0));break;
-            case 'exam_pdf':require dirname(__DIR__).'/app/exam-pdf.php';export_exam_pdf((int)($_GET['exam_id']??0),(int)($_GET['version_id']??0),isset($_GET['columns'])?(int)$_GET['columns']:null,($_GET['key']??'0')==='1');
+            case 'exam_pdf':
+                if(isset($_GET['group_images'])&&!in_array($_GET['group_images'],['0','1'],true))fail('Agrupamento de imagens inválido.');
+                require dirname(__DIR__).'/app/exam-pdf.php';export_exam_pdf((int)($_GET['exam_id']??0),(int)($_GET['version_id']??0),isset($_GET['columns'])?(int)$_GET['columns']:null,($_GET['key']??'0')==='1',$_GET,($_GET['cover_only']??'0')==='1');
             case 'logout': $_SESSION=[];session_regenerate_id(true);$_SESSION['csrf']=bin2hex(random_bytes(32));$out=['csrf'=>$_SESSION['csrf']];break;
             case 'dashboard':
                 $out=['school'=>one('SELECT name FROM schools WHERE id=?',[$school])['name'],'classes'=>rows('SELECT c.*,COUNT(s.id) students FROM classes c LEFT JOIN students s ON s.class_id=c.id WHERE c.school_id=? GROUP BY c.id ORDER BY c.name',[$school]),'exams'=>array_map('with_exam_classes',rows('SELECT e.*,(SELECT COUNT(*) FROM questions WHERE exam_id=e.id) questions,(SELECT COUNT(*) FROM enrollments WHERE exam_id=e.id) enrolled,(SELECT COUNT(*) FROM results WHERE exam_id=e.id) graded FROM exams e WHERE e.school_id=? ORDER BY e.date DESC,e.id DESC',[$school])),'student_count'=>(int)one('SELECT COUNT(*) n FROM students WHERE school_id=?',[$school])['n'],'result_count'=>(int)one('SELECT COUNT(*) n FROM results r JOIN exams e ON e.id=r.exam_id WHERE e.school_id=?',[$school])['n']];break;
@@ -119,9 +131,10 @@ try {
             case 'report':$out=report((int)($_GET['id']??0),(int)($_GET['class_id']??0),strval_trim($_GET['grade_name']??''));break;
             case 'individual':$out=individual_report((int)($_GET['id']??0));break;
             case 'export':export_report((int)($_GET['id']??0),(int)($_GET['class_id']??0),strval_trim($_GET['grade_name']??''));
-            case 'team':if($u['role']!=='admin')fail('Acesso exclusivo de administrador.',403);$out=rows('SELECT id,name,email,role FROM users WHERE school_id=?',[$school]);break;
-            case 'team_create':
-                if($u['role']!=='admin')fail('Acesso exclusivo de administrador.',403);$email=mb_strtolower(text_field($body['email']??''));$pass=(string)($body['password']??'');if(!filter_var($email,FILTER_VALIDATE_EMAIL)||strlen($pass)<12||strlen($pass)>200)fail('Informe e-mail válido e senha de 12 a 200 caracteres.');if(one('SELECT id FROM users WHERE email=?',[$email]))fail('E-mail indisponível.');query('INSERT INTO users(school_id,name,email,password,role) VALUES(?,?,?,?,?)',[$school,text_field($body['name']??''),$email,password_hash($pass,PASSWORD_DEFAULT),'teacher']);audit('user.created',(int)db()->lastInsertId());$out=['message'=>'Professor cadastrado com acesso aos dados desta escola.'];break;
+            case 'team':$out=staff_list();break;
+            case 'team_create':$out=create_staff($body);break;
+            case 'team_update':$out=update_staff($body);break;
+            case 'team_review':$out=review_staff($body);break;
             default: fail('Operação não encontrada.',404);
         }
     }

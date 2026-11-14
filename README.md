@@ -1,5 +1,20 @@
 # MarioProvas
 
+## Contas, aprovação e equipe
+
+Na entrada, **Criar minha conta** solicita nome, e-mail, telefone, senha, área
+de conhecimento, disciplina e um ou mais turnos. Novas solicitações ficam
+pendentes, sem acesso, até um administrador ou operador autorizar em
+**Equipe da escola**. O painel permite editar os dados profissionais, trocar
+senha, suspender e reativar acessos. Administradores também definem os perfis.
+Veja o [guia de cadastro e equipe](docs/EQUIPE-E-CADASTRO.md).
+
+A limpeza local solicitada preservou o administrador e sua senha, removeu os
+dados escolares e deixou 20 questões originais. O backup anterior está em
+`storage/backups/`, privado. Importe estudantes novamente para criar provas.
+Essa limpeza não faz parte das migrações nem da instalação automática.
+
+
 ## Banco de questões e provas com versões
 
 O menu agora inclui **Banco de questões** e **Montar prova**. É possível
@@ -7,7 +22,10 @@ cadastrar enunciados, imagens e alternativas, pesquisar por classificação, sel
 questões manual ou automaticamente, conferir as versões A–Z e baixar provas
 em PDF com uma ou duas colunas, escolhidas antes de criar. O PDF começa com
 capa e cartão-resposta, seguidos da prova. Há download de todas as versões no
-mesmo arquivo. Cada versão tem gabarito e cartão próprios; a
+mesmo arquivo. Em duas colunas, há uma linha divisória; questões com imagem
+usam a largura inteira e podem ser agrupadas ao final. A capa padrão fica em
+branco com o cartão centralizado, e aceita um PDF personalizado de uma página.
+Cada versão tem gabarito e cartão próprios; a
 câmera identifica a versão pelo QR antes da confirmação da leitura. O conteúdo
 das provas finalizadas é preservado quando o banco é editado.
 
@@ -17,9 +35,9 @@ não identificar, a seleção é manual. IDs menores usam zeros à esquerda; a
 correspondência considera a matrícula do cadastro. Confira o passo a passo no guia abaixo.
 
 Veja o [guia de criação, impressão e correção por versão](docs/PROVAS-E-VERSOES.md)
-para o passo a passo, posições fixas, resultados e testes. A migração v5 é
+para o passo a passo, posições fixas, resultados e testes. A migração v7 é
 automática e preserva os dados existentes. Atualize os arquivos completos,
-incluindo `app/vendor/tfpdf/` e `app/vendor/qrcode/`, e use Ctrl+F5. O fluxo anterior de simulados por
+incluindo `app/vendor/tfpdf/`, `app/vendor/qrcode/`, `app/vendor/fpdi/` e os recursos de `public/assets/vendor/`, e use Ctrl+F5. O fluxo anterior de simulados por
 gabarito continua disponível em **Novo simulado**; as instruções anteriores
 abaixo continuam válidas para esse fluxo.
 
@@ -61,7 +79,7 @@ Use hospedagem **PHP**, não um plano restrito ao construtor visual. Confira a d
 1. Envie o conteúdo de `dist/MarioProvas-hostinger.zip` e extraia preservando a estrutura. O pacote não inclui CSV, banco, credenciais nem dados reais.
 2. **Preferível:** configure o document root do domínio/subdomínio para a pasta `public/`; mantenha `app/`, `storage/` e `config.php` fora desse document root. Se seu plano fixa a pasta `public_html`, extraia **a estrutura completa do pacote dentro dela**, incluindo o `.htaccess` da raiz e o de `public/`, e abra `https://seu-dominio/`. O arquivo da raiz encaminha internamente a interface, impressão e recursos autorizados; a pasta física `public/` permanece no servidor, mas não aparece na URL. Os bloqueios de arquivos/pastas privados devem ser preservados. Não mova somente o conteúdo de `public/`: isso quebra os caminhos PHP de configuração e banco.
 3. Ative PHP 8.2+ com as extensões indicadas, ajuste o upload e dê permissão de escrita ao PHP somente em `storage/`. Não use permissão 777. Se houver SSH, execute `php scripts/check.php` e `php install.php` na raiz da aplicação.
-4. **Sem SSH:** copie `config.example.php` para `config.php`, ao lado de `app/`. Defina `setup_key` com uma chave aleatória de pelo menos 32 caracteres. Abra o site e complete “Prepare sua escola” usando essa chave. Não existe senha padrão nem cadastro público. Depois de instalar, esvazie `setup_key` no arquivo e guarde o `config.php` privado. O banco impede nova instalação mesmo que a chave continue configurada.
+4. **Sem SSH:** copie `config.example.php` para `config.php`, ao lado de `app/`. Defina `setup_key` com uma chave aleatória de pelo menos 32 caracteres. Abra o site e complete “Prepare sua escola” usando essa chave. Não existe senha padrão. Após instalar, o cadastro público fica disponível e depende de aprovação por administrador ou operador. Depois de instalar, esvazie `setup_key` no arquivo e guarde o `config.php` privado. O banco impede nova instalação mesmo que a chave continue configurada.
 5. Ative o certificado SSL e o redirecionamento HTTP → HTTPS no painel da hospedagem. Acesse o endereço HTTPS definitivo antes de instalar a PWA. A câmera depende de contexto seguro ([documentação de getUserMedia](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia)). Um IP da rede local servido por HTTP não é equivalente a localhost.
 6. Desative cache de página/CDN para `api.php`, páginas autenticadas e impressão. O projeto envia `Cache-Control: no-store, private`. Preserve cookies de sessão e cabeçalhos de segurança. Para Nginx ou servidores que ignoram `.htaccess`, exponha **somente `public/`** e implemente os cabeçalhos equivalentes.
 
@@ -199,7 +217,7 @@ python tests/migration.py
 C:\xampp\php\php.exe scripts/check.php
 ```
 
-Node e Python são necessários **somente para desenvolvimento/testes**, não para servir a aplicação. Em Linux use `npm` e ajuste `PHP_BIN` se necessário. As dependências de teste são fixadas no lockfile. Se o CSV original não estiver mais na pasta, a integração usa os cadastros reais da base local apenas como fonte de leitura e monta o CSV de teste em memória. Todas as importações e correções de teste acontecem em SQLite temporário. O teste de migração também usa uma cópia privada da base existente, sem atualizar a origem. Veja [docs/VERIFICACAO.md](docs/VERIFICACAO.md) para a evidência e os limites de validação.
+Node e Python são necessários **somente para desenvolvimento/testes**, não para servir a aplicação. Em Linux use `npm` e ajuste `PHP_BIN` se necessário. As dependências de teste são fixadas no lockfile. Se o CSV original não estiver mais na pasta, a integração gera um CSV sintético somente para o banco temporário, funcionando também após limpar a base local. Todas as importações e correções de teste acontecem em SQLite temporário. O teste de migração também usa uma cópia privada da base existente, sem atualizar a origem. Veja [docs/VERIFICACAO.md](docs/VERIFICACAO.md) para a evidência e os limites de validação.
 
 A integração também verifica a exportação em Chrome/Edge headless quando o executável está disponível; use `MARIOPROVAS_CHROME` para indicar outro caminho. Esse teste usa perfil temporário, login e banco de testes, baixa o PNG de verdade e produz capturas desktop/celular em `tests/artifacts/`. Não aciona a câmera física e não é necessário Chrome no servidor de produção.
 

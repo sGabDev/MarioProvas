@@ -1,5 +1,27 @@
 # Registro de verificação — atualizado em 11/11/2026
 
+## Contas, aprovação, equipe e limpeza em 14/11/2026
+
+- Cadastro público com e-mail, telefone, nome, senha, área, disciplina e turnos múltiplos. Sempre cria professor pendente, independentemente de campos de perfil/situação enviados pelo cliente. Login bloqueado até autorização, sem expor senha na equipe.
+- Administrador e operador autorizam professores. Administrador define perfis; operador não altera administradores/outros operadores nem promove contas. Edição de dados/senha, suspensão, reativação, recusa, controle de revisão e isolamento por escola. Proteção contra retirar o próprio acesso de gestão e contra perder o último administrador ativo.
+- Troca de e-mail, senha ou perfil invalida outras sessões; suspensão revoga acesso imediato. Login novo elimina prévias/importações da sessão anterior. Migração v7 aditiva conserva contas antigas como ativas e não inventa dados profissionais.
+- `tests/accounts_integration.py`: seis grupos aprovados com API real/SQLite temporário, incluindo CSRF, dados inválidos, turnos, tentativa de autopromoção, espera, autorização, edição, hash preservado quando senha vazia, revogação de sessão, concorrência, suspensão/reativação/recusa e outra escola. Chrome/Playwright cobre cadastro, bloqueio antes de aprovação, autorização, edição e senha, suspensão/reativação e telas de 320–1366px; capturas só com pessoas fictícias.
+- A rotina CLI de limpeza foi testada em banco descartável: recusa tabelas desconhecidas, gera backup, conserva usuários/senhas/perfis, apaga dados escolares e adiciona 20 questões por escola, com integridade referencial válida.
+- Limpeza solicitada executada depois dos testes no banco local: 1 usuário e 1 escola preservados, 20 questões cadastradas, demais tabelas vazias. Backup privado consistente em `storage/backups/antes-limpeza-equipe-20261114-104114.sqlite`. As sessões antigas exigem novo login; nenhum nome ou senha aparece nesta documentação.
+- As 54 verificações anteriores de integração e a migração em cópia privada passaram. O teste anterior foi ajustado para gerar CSV sintético na ausência do original; o teste de migração cria seu participante apenas na cópia quando a escola não tem estudantes. Assim os testes continuam disponíveis depois da limpeza sem repovoar o banco real.
+
+
+## Diagramação e capa em PDF em 14/11/2026
+
+- Duas colunas com linha divisória somente na área de questões sem imagem. Questões com imagem em largura inteira, agrupamento opcional ao final, reaproveitamento da folha e numeração/gabaritos preservados. A prévia da montagem acompanha a opção.
+- Capa padrão apenas com cartão centralizado, sem cabeçalho ou rodapé externo. Cada bloco de até 60 questões usa uma folha de capa. PDF personalizado de uma página/4 MB, aplicado como fundo sem distorção; cartão opaco por cima e identificação da versão dentro do cartão.
+- Configurações de colunas, agrupamento e capa persistidas na criação ou na tela da prova, com revisão independente para detectar edição concorrente. Capa imutável e privada por escola. Troca/remoção não altera questões, versões, QR ou resultados.
+- FPDI 2.6.10 integrado ao tFPDF e pdf-lib 1.17.1 carregado localmente no envio de capa. O navegador regrava PDFs com compactação moderna para importação pelo servidor. Sem CDN, Composer ou serviços externos em produção.
+- **26 verificações de banco/versões aprovadas**, mais interface real em Chrome/Playwright: upload PDF clássico/moderno, configuração na criação, persistência, remoção, substituição, prévia real, PDFs individuais/conjuntos, validação de arquivos, CSRF, concorrência e isolamento entre escolas. Continua verificando correção por versão e identificação de aluno por câmera com pixels de cartão extraído da capa.
+- PDFs renderizados e conferidos: linha entre colunas, ausência de linha atravessando imagem, imagens centralizadas em largura inteira, sequência agrupada/desagrupada, duas questões com imagem na mesma página, capa branca centralizada, fundo personalizado preservado e área branca opaca do cartão. Prévia de capa exportada pelo navegador foi reaberta e renderizada. Inspeção visual incluiu capa padrão/personalizada, página com divisória e duas imagens consecutivas.
+- **54 verificações de integração anteriores aprovadas**, com DOM e exportação em Chrome. Migração v6 idempotente em cópia privada, sem alterar registros antigos. Sintaxe PHP/JavaScript conferida. A câmera física e a impressão em papel continuam pendentes de teste no ambiente da escola; nenhum teste grava no banco real.
+
+
 ## Matrícula de seis dígitos em 14/11/2026
 
 - Cartões compactos e A4, PNG e capa PDF incluem seis caixas para escrita e seis colunas de bolhas de 0 a 9. A leitura usa as bolhas. IDs menores são completados com zeros à esquerda; não há truncamento de IDs longos ou conversão de letras.

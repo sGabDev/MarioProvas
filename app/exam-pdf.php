@@ -3,8 +3,9 @@ declare(strict_types=1);
 require_once __DIR__.'/vendor/tfpdf/tfpdf.php';
 require_once __DIR__.'/vendor/tfpdf/font/unifont/ttfonts.php';
 require_once __DIR__.'/vendor/qrcode/qrcode.php';
+require_once __DIR__.'/exam-covers.php';
 
-final class ExamPdf extends tFPDF {
+final class ExamPdf extends \setasign\Fpdi\Tfpdf\Fpdi {
     public array $examData=[];
     public string $versionLabel='';
     public bool $teacher=false;
@@ -16,8 +17,19 @@ final class ExamPdf extends tFPDF {
     private bool $cover=false;
     private array $imageData=[];
     private array $questionImages=[];
+    private int $flowColumns=1;
+    private float $columnTop=60;
+    private float $leftEnd=0;
+    private array $coverPages=[];
+    private ?string $coverTemplate=null;
+    public function setCover(?array $cover): void {
+        if(!$cover)return;
+        $this->setSourceFile(\setasign\Fpdi\PdfParser\StreamReader::createByString($cover['data']));
+        $this->coverTemplate=$this->importPage(1,\setasign\Fpdi\PdfReader\PageBoundaries::CROP_BOX,true,false);
+    }
     public function Header(): void {
         $this->pageLabels[$this->PageNo()]=$this->versionLabel;
+        if($this->cover){$this->coverPages[$this->PageNo()]=true;$this->SetXY(14,14);return;}
         $this->SetTextColor(20,43,40);$this->SetFont('School','B',14);$this->SetXY(14,12);
         $this->MultiCell(182,6,$this->examData['name']);
         $this->SetFont('School','B',11);$this->Cell(182,7,($this->teacher?'GABARITO DO PROFESSOR - ':($this->cover?'CAPA - ':'PROVA - ')).'VERSÃO '.$this->versionLabel,0,1);
@@ -25,23 +37,39 @@ final class ExamPdf extends tFPDF {
         $this->MultiCell(182,4.5,$this->examData['date'].' | Duração: '.$this->examData['duration'].' minutos | '.mb_strimwidth($this->examData['class_name'],0,145,'...'));
         if(!$this->teacher){$this->Ln(3);$this->Cell(182,6,'Estudante: ___________________________________________________ Turma: __________',0,1);$this->MultiCell(182,4.5,'Use o cartão-resposta da versão '.$this->versionLabel.'. Preencha uma alternativa por questão.');}
         else {$this->MultiCell(182,4.5,'Uso exclusivo do professor. Referência = questão na ordem original da seleção.');}
-        $this->Ln(3);$this->SetDrawColor(150,170,160);$this->Line(14,$this->GetY(),196,$this->GetY());$this->top=$this->GetY()+5;$this->SetY($this->top);
+        $this->Ln(3);$this->SetDrawColor(150,170,160);$this->Line(14,$this->GetY(),196,$this->GetY());$this->top=$this->GetY()+5;$this->columnTop=$this->top;$this->leftEnd=0;$this->SetY($this->top);
     }
     public function Footer(): void {
+        if(isset($this->coverPages[$this->PageNo()]))return;
         $this->SetXY(14,284);$this->SetFont('School','',8);$this->SetTextColor(90,105,100);
         $this->Cell(182,5,'Versão '.($this->pageLabels[$this->PageNo()]??$this->versionLabel).' | Página '.$this->PageNo().' | MarioProvas',0,0,'R');
     }
-    private function columnWidth(): float {return $this->columns===2?87:182;}
+    private function columnWidth(): float {return $this->flowColumns===2?87:182;}
     private function columnX(): float {return 14+$this->column*95;}
     private function nextColumn(): void {
-        if($this->columns===2&&$this->column===0){$this->column=1;$this->SetXY($this->columnX(),$this->top);}
-        else {$this->column=0;$this->AddPage();$this->SetXY(14,$this->top);}
+        if($this->flowColumns===2&&$this->column===0){$this->leftEnd=$this->GetY();$this->column=1;$this->SetXY($this->columnX(),$this->columnTop);}
+        else {$this->finishColumns();$this->column=0;$this->AddPage();$this->SetXY(14,$this->top);}
+    }
+    private function finishColumns(): void {
+        if($this->flowColumns!==2)return;
+        $end=min($this->bottom,max($this->leftEnd,$this->GetY()));
+        if($end>$this->columnTop){$this->SetDrawColor(145,155,150);$this->SetLineWidth(.2);$this->Line(105,$this->columnTop,105,$end);}
+        $this->SetXY(14,$end);$this->leftEnd=0;$this->column=0;
+    }
+    private function switchFlow(int $columns): void {
+        if($columns===$this->flowColumns)return;
+        $this->finishColumns();$this->flowColumns=$columns;$this->column=0;$this->columnTop=$this->GetY();$this->SetX(14);
     }
     public function startVersion(string $label): void {
         $this->versionLabel=$label;$this->column=0;$this->cover=false;
         if($this->teacher)$this->AddPage();
     }
-    public function startQuestions(): void {$this->cover=false;$this->column=0;$this->AddPage();}
+    public function startQuestions(): void {$this->cover=false;$this->column=0;$this->flowColumns=1;$this->AddPage();}
+    public function questions(array $questions,bool $groupImages): void {
+        if($this->columns===2&&$groupImages)$questions=array_merge(array_values(array_filter($questions,fn($q)=>empty($q['image_id']))),array_values(array_filter($questions,fn($q)=>!empty($q['image_id']))));
+        foreach($questions as $q){$this->switchFlow($this->columns===2&&empty($q['image_id'])?2:1);$this->question($q);}
+        $this->finishColumns();
+    }
     protected function _parsejpg($file) {
         if(!isset($this->imageData[$file]))return parent::_parsejpg($file);
         $data=$this->imageData[$file];$a=getimagesizefromstring($data);$cs=($a['channels']??3)===4?'DeviceCMYK':(($a['channels']??3)===1?'DeviceGray':'DeviceRGB');
@@ -64,13 +92,12 @@ final class ExamPdf extends tFPDF {
         return $best;
     }
     public function answerCover(array $cards): void {
-        $this->cover=true;$this->AddPage();$this->SetFont('School','B',11);$this->Cell(182,7,'Orientações para a prova',0,1);
-        $this->SetFont('School','',10);$this->MultiCell(182,5,'Confira seu nome, turma e versão. Preencha a matrícula/ID nas seis colunas de bolhas, usando zeros à esquerda se necessário. Marque uma alternativa por questão. Preserve os QR codes e as quatro marcas de cada cartão.');$this->Ln(5);
+        $this->cover=true;
         foreach($cards as $card){
             $l=$this->cardLayout((int)$card['question_count'],(int)$this->examData['alternatives']);$w=$l['w']*.2;$h=$l['h']*.2;
-            if($this->GetY()+$h+12>$this->bottom)$this->AddPage();
-            $this->SetX(14);$this->SetFont('School','B',10);$this->SetTextColor(20,43,40);$this->Cell(182,7,'Cartão-resposta - Versão '.$this->versionLabel.' - Bloco '.$card['page'].' - Questões '.$card['start_number'].' a '.($card['start_number']+$card['question_count']-1),0,1);
-            $x=(210-$w)/2;$y=$this->GetY()+2;$this->drawCard($card,$l,$x,$y);$this->SetXY(14,$y+$h+5);
+            $this->AddPage();
+            if($this->coverTemplate!==null){$size=$this->getTemplateSize($this->coverTemplate);$scale=min(210/$size['width'],297/$size['height']);$tw=$size['width']*$scale;$th=$size['height']*$scale;$this->useTemplate($this->coverTemplate,(210-$tw)/2,(297-$th)/2,$tw,$th);}
+            $x=(210-$w)/2;$y=(297-$h)/2;$this->drawCard($card,$l,$x,$y);
         }
     }
     private function drawCard(array $card,array $l,float $x,float $y): void {
@@ -99,6 +126,8 @@ final class ExamPdf extends tFPDF {
             }
         }
         $this->SetTextColor(20,35,30);$this->SetDrawColor(150,170,160);$this->SetLineWidth(.2);
+        // Identificação faz parte do cartão, sem cabeçalho ou rodapé na capa.
+        $this->SetFont('School','',6);$this->SetXY($x+52*$s,$y+15*$s);$this->Cell(40,3,'Versão '.$this->versionLabel.' | Bloco '.$card['page'].' | Q'.$card['start_number'].'-'.($card['start_number']+$card['question_count']-1),0,0);
     }
     private function wrapText(string $text,float $width): array {
         $out=[];$text=str_replace(["\r","\t"],['','    '],$text);
@@ -115,7 +144,7 @@ final class ExamPdf extends tFPDF {
         foreach($this->wrapText($q['statement'],$width-2) as $line)$lines[]=['text'=>$line,'bold'=>false,'indent'=>0];
         if(!empty($q['image_id'])){
             $id=$q['image_id'];if(!isset($this->questionImages[$id]))$this->questionImages[$id]=question_image($id,true);$image=$this->questionImages[$id];
-            $scale=min(($width-2)/$image['width'],90/$image['height'],.2645833);$lines[]=['image'=>$image,'w'=>$image['width']*$scale,'h'=>$image['height']*$scale+4];
+            $scale=min(min($width-2,145)/$image['width'],90/$image['height'],.2645833);$lines[]=['image'=>$image,'w'=>$image['width']*$scale,'h'=>$image['height']*$scale+4];
         }
         $lines[]=['text'=>'','bold'=>false,'indent'=>0];
         foreach($q['options'] as $i=>$option){$wrapped=$this->wrapText($option,$width-8);foreach($wrapped as $j=>$line)$lines[]=['text'=>($j===0?chr(65+$i).') ':'').$line,'bold'=>false,'indent'=>$j===0?0:6];}
@@ -136,13 +165,15 @@ final class ExamPdf extends tFPDF {
         foreach($qs as $q){if($this->GetY()+7>$this->bottom)$this->AddPage();$this->SetX(14);$this->Cell(182,7,'Questão '.$q['position'].'   |   '.($q['annulled']?'ANULADA':$q['answer']).'   |   Referência: '.$q['original_number'].'   |   '.mb_strimwidth($q['discipline'],0,55,'...'),0,1);}
     }
 }
-function export_exam_pdf(int $examId,int $versionId,?int $columns,bool $key): never {
+function export_exam_pdf(int $examId,int $versionId,?int $columns,bool $key,array $overrides=[],bool $coverOnly=false): never {
     $e=exam($examId);$columns??=(int)$e['pdf_columns'];if(!in_array($columns,[1,2],true))fail('Escolha uma ou duas colunas.');
+    $settings=pdf_settings(['pdf_columns'=>$columns,'pdf_group_images'=>isset($overrides['group_images'])?$overrides['group_images']==='1':(bool)$e['pdf_group_images'],'cover_id'=>array_key_exists('cover',$overrides)?($overrides['cover']==='none'?null:$overrides['cover']):$e['cover_id']]);
     $versions=exam_versions($examId);if(!$versions)fail('Este simulado não tem enunciados e versões para impressão.');
     if($versionId){$versions=array_values(array_filter($versions,fn($v)=>(int)$v['id']===$versionId));if(!$versions)fail('Versão fora desta prova.',404);}
     $pdf=new ExamPdf();$pdf->examData=$e;$pdf->teacher=$key;$pdf->columns=$key?1:$columns;
+    if(!$key&&$settings['cover_id'])$pdf->setCover(exam_cover($settings['cover_id'],true));
     $pdf->SetMargins(14,12,14);$pdf->SetAutoPageBreak(false);$pdf->AddFont('School','','DejaVuSansCondensed.ttf',true);$pdf->AddFont('School','B','DejaVuSansCondensed-Bold.ttf',true);
     $pdf->SetTitle($e['name'],true);$pdf->SetAuthor('MarioProvas');
-    foreach($versions as $v){$content=version_content($examId,(int)$v['id']);$pdf->startVersion($v['label']);if($key)$pdf->key($content['questions']);else{$cards=rows('SELECT * FROM cards WHERE booklet_id=? ORDER BY page',[$v['booklet_id']]);$pdf->answerCover($cards);$pdf->startQuestions();foreach($content['questions'] as $q)$pdf->question($q);}}
-    $bytes=$pdf->Output('S');header('Content-Type: application/pdf');header('Content-Disposition: attachment; filename="'.($key?'gabarito-professor':'prova').'-'.$examId.($versionId?'-'.$versions[0]['label']:'-todas-versoes').'.pdf"');header('Content-Length: '.strlen($bytes));echo $bytes;exit;
+    foreach($versions as $v){$content=version_content($examId,(int)$v['id']);$pdf->startVersion($v['label']);if($key)$pdf->key($content['questions']);else{$cards=rows('SELECT * FROM cards WHERE booklet_id=? ORDER BY page',[$v['booklet_id']]);$pdf->answerCover($cards);if(!$coverOnly){$pdf->startQuestions();$pdf->questions($content['questions'],(bool)$settings['pdf_group_images']);}}}
+    $bytes=$pdf->Output('S');header('Content-Type: application/pdf');header('Content-Disposition: attachment; filename="'.($key?'gabarito-professor':($coverOnly?'capa':'prova')).'-'.$examId.($versionId?'-'.$versions[0]['label']:'-todas-versoes').'.pdf"');header('Content-Length: '.strlen($bytes));echo $bytes;exit;
 }

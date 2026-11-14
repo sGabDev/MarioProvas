@@ -71,7 +71,7 @@ try:
     (ART/'question-diagram.png').write_bytes(png)
     image=c.call('question_image_upload',multipart=(png,'image/png'))
     check(c.call('question_image',id=image['id'],raw=True)==png,'upload e consulta autenticada de imagem PNG')
-    jpeg=pymupdf.Pixmap(pymupdf.Pixmap(png),0).tobytes('jpeg');imageJpeg=c.call('question_image_upload',multipart=(jpeg,'image/jpeg'))
+    flat=pymupdf.open();fp=flat.new_page(width=600,height=240);fp.insert_image(fp.rect,stream=png);jpeg=fp.get_pixmap(alpha=False).tobytes('jpeg');flat.close();imageJpeg=c.call('question_image_upload',multipart=(jpeg,'image/jpeg'))
     check(c.call('question_image',id=imageJpeg['id'],raw=True)==jpeg,'upload e consulta autenticada de imagem JPEG')
     c.call('question_image_upload',multipart=(png,'image/png'),csrf=False,expected=403)
     c.call('question_image_upload',multipart=(b'<svg/>','image/svg+xml'),expected=422)
@@ -139,6 +139,41 @@ try:
     pdf=c.call('exam_pdf',exam_id=eid,key=1,raw=True);assert pdf.startswith(b'%PDF-');(ART/'bank-gabaritos.pdf').write_bytes(pdf)
     (ART/'bank-todas-versoes.pdf').write_bytes(c.call('exam_pdf',exam_id=eid,raw=True))
     check(True,'downloads reais de PDF em uma e duas colunas e gabaritos separados')
+    # Capa importada, configuração persistida e variantes de diagramação.
+    cover_doc=pymupdf.open();cp=cover_doc.new_page(width=595.276,height=841.89)
+    cp.draw_rect(pymupdf.Rect(15,15,580,827),color=(.1,.4,.25),width=2)
+    cp.insert_text((45,60),'CAPA PERSONALIZADA DE TESTE',fontsize=18,color=(.1,.4,.25))
+    cp.insert_text((45,790),'Rodape do modelo enviado',fontsize=12)
+    cp.draw_rect(pymupdf.Rect(260,395,335,445),fill=(1,0,0),color=(1,0,0))
+    cover_bytes=cover_doc.tobytes();(ART/'cover-template.pdf').write_bytes(cover_bytes)
+    (ART/'cover-template-modern.pdf').write_bytes(cover_doc.tobytes(use_objstms=1,deflate=True))
+    cv=c.call('exam_cover_upload',multipart=(cover_bytes,'application/pdf'))
+    assert c.call('exam_cover',id=cv['id'],raw=True)==cover_bytes
+    c.call('exam_cover_upload',multipart=(cover_bytes,'application/pdf'),csrf=False,expected=403)
+    c.call('exam_cover_upload',multipart=(b'<html>no</html>','application/pdf'),expected=422)
+    c.call('exam_cover_upload',multipart=(b'%PDF-invalid','application/pdf'),expected=422)
+    cover_doc.new_page();c.call('exam_cover_upload',multipart=(cover_doc.tobytes(),'application/pdf'),expected=422)
+    c.call('exam_cover_upload',multipart=(b'%PDF-'+b'X'*(4*1024*1024),'application/pdf'),expected=413)
+    current=detail(c,eid);unchanged=[c.call('version_content',exam_id=eid,version_id=v['id']) for v in current['versions']]
+    config={'exam_id':eid,'pdf_revision':current['pdf_revision'],'pdf_columns':2,'pdf_group_images':True,'cover_id':cv['id']}
+    saved=c.call('save_pdf_settings',config);assert saved['pdf_revision']==current['pdf_revision']+1
+    c.call('save_pdf_settings',config,expected=409);c.call('save_pdf_settings',config,csrf=False,expected=403)
+    assert detail(c,eid)['cover_id']==cv['id']
+    (ART/'bank-custom-cover.pdf').write_bytes(c.call('exam_pdf',exam_id=eid,version_id=e['versions'][1]['id'],raw=True))
+    (ART/'bank-custom-all.pdf').write_bytes(c.call('exam_pdf',exam_id=eid,raw=True))
+    (ART/'bank-custom-preview.pdf').write_bytes(c.call('exam_pdf',exam_id=eid,version_id=e['versions'][1]['id'],cover_only=1,raw=True))
+    (ART/'bank-ungrouped.pdf').write_bytes(c.call('exam_pdf',exam_id=eid,version_id=e['versions'][1]['id'],group_images=0,cover='none',raw=True))
+    c.call('exam_pdf',exam_id=eid,group_images='bad',expected=422)
+    (ART/'bank-layout-expected.json').write_text(json.dumps(c.call('version_content',exam_id=eid,version_id=e['versions'][1]['id'])['questions']),encoding='utf-8')
+    c.call('save_pdf_settings',{**config,'pdf_revision':saved['pdf_revision'],'cover_id':None})
+    assert unchanged==[c.call('version_content',exam_id=eid,version_id=v['id']) for v in current['versions']]
+    # Duas questões com imagem consecutivas compartilham a página de largura inteira.
+    iq=c.call('bank_save',{**base,'statement':'Outra imagem para conferir economia de folhas.','image_id':image['id']})
+    image_exam=finalize(c,prepared(c,[ids[1],iq['id']],classes,versions=1,pdf_columns=2,cover_id=cv['id'],pdf_group_images=True))
+    assert detail(c,image_exam)['cover_id']==cv['id']
+    (ART/'bank-images-only.pdf').write_bytes(c.call('exam_pdf',exam_id=image_exam,raw=True))
+    check(True,'capa PDF privada, envio válido/inválido, criação, troca/remoção, prévia, persistência e concorrência sem alterar versões')
+
     # Seleção automática, insuficiência e validação do tamanho uniforme.
     auto=prepared(c,ids[:3],classes,mode='automatic',filters={'discipline':'Matemática','difficulty':'medium'})
     check(len(auto['draft']['questions'])==3 and all(q['discipline']=='Matemática' for q in auto['draft']['questions']),'seleção automática respeita disciplina, dificuldade e quantidade')
@@ -190,6 +225,7 @@ try:
     db.close()
     b=Client();b.call('state');b.call('login',{'email':'other@example.invalid','password':password})
     b.call('bank_question',id=ids[0],expected=404);b.call('bank_save',{**qs[0]},expected=404);b.call('version_content',exam_id=eid,version_id=e['versions'][0]['id'],expected=404);b.call('exam_pdf',exam_id=eid,expected=404);b.call('add_versions',{'exam_id':eid,'count':1},expected=404)
+    b.call('exam_cover',id=cv['id'],expected=404);b.call('save_pdf_settings',config,expected=404);b.call('exam_pdf',exam_id=eid,cover=cv['id'],expected=404)
     b.call('question_image',id=image['id'],expected=404);b.call('bank_save',{**base,'image_id':image['id']},expected=404)
     check(b.call('bank_list')['total']==0,'banco, versões e PDFs isolados por escola')
     with sqlite3.connect(tmp/'test.sqlite') as db:check(not db.execute('PRAGMA foreign_key_check').fetchall(),'integridade referencial após correções, novas versões e edição do banco')
@@ -197,6 +233,10 @@ try:
     subprocess.run(['python','tests/bank_pdf.py'],cwd=ROOT,check=True,timeout=60)
     browser_env=os.environ.copy();browser_env.update(MARIOPROVAS_TEST_URL=BASE,MARIOPROVAS_TEST_EMAIL=email,MARIOPROVAS_TEST_PASSWORD=password,MARIOPROVAS_TEST_EXAM=str(eid),MARIOPROVAS_MULTI_EXAM=str(multi))
     subprocess.run(['node','tests/bank-browser.mjs'],cwd=ROOT,env=browser_env,check=True,timeout=180)
+    ui_cover=pymupdf.open(ART/'bank-ui-cover-preview.pdf');assert len(ui_cover)==1 and 'CAPA PERSONALIZADA DE TESTE' in ui_cover[0].get_text() and 'ID / Matrícula' in ui_cover[0].get_text()
+    ui_cover[0].get_pixmap(matrix=pymupdf.Matrix(1.3,1.3)).save(ART/'bank-ui-cover-preview.png')
+    ui_all=pymupdf.open(ART/'bank-ui-todas-versoes.pdf');assert sum('CAPA PERSONALIZADA DE TESTE' in p.get_text() for p in ui_all)==2
+    check(True,'PDF moderno preparado no navegador preserva capa, cartão e todas as versões no download real')
     print(f'Concluído: {len(checks)} verificações de banco/versões + interface em navegador.',flush=True)
 except Exception:
     log.flush();print((tmp/'server.log').read_text(errors='replace')[-4500:]);raise

@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 function migrate(PDO $db): void {
-    if ((int)$db->query('PRAGMA user_version')->fetchColumn() >= 5) return;
+    if ((int)$db->query('PRAGMA user_version')->fetchColumn() >= 7) return;
     $db->exec('BEGIN IMMEDIATE');
     try {
         if ((int)$db->query('PRAGMA user_version')->fetchColumn() < 1) {
@@ -70,6 +70,19 @@ function migrate(PDO $db): void {
             $known=array_column($db->query('PRAGMA table_info(cards)')->fetchAll(),'name');
             foreach(['student_id_scores','detected_external_id','identity_method','id_status'] as $name)if(!in_array($name,$known,true))$db->exec('ALTER TABLE cards ADD COLUMN '.$name.' TEXT');
             $db->exec('PRAGMA user_version=5');
+        }
+        if ((int)$db->query('PRAGMA user_version')->fetchColumn() < 6) {
+            $db->exec('CREATE TABLE IF NOT EXISTS exam_covers(id TEXT PRIMARY KEY,school_id INTEGER NOT NULL REFERENCES schools(id),name TEXT NOT NULL,data BLOB NOT NULL,created_by INTEGER NOT NULL REFERENCES users(id),created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)');
+            $known=array_column($db->query('PRAGMA table_info(exams)')->fetchAll(),'name');
+            foreach(['cover_id'=>'TEXT REFERENCES exam_covers(id)','pdf_group_images'=>'INTEGER NOT NULL DEFAULT 1','pdf_revision'=>'INTEGER NOT NULL DEFAULT 1'] as $name=>$definition)if(!in_array($name,$known,true))$db->exec('ALTER TABLE exams ADD COLUMN '.$name.' '.$definition);
+            $db->exec('PRAGMA user_version=6');
+        }
+        if ((int)$db->query('PRAGMA user_version')->fetchColumn() < 7) {
+            $known=array_column($db->query('PRAGMA table_info(users)')->fetchAll(),'name');
+            // A flag mantém compatibilidade com o CHECK legado admin/teacher.
+            $columns=['phone'=>"TEXT NOT NULL DEFAULT ''",'knowledge_area'=>"TEXT NOT NULL DEFAULT ''",'discipline'=>"TEXT NOT NULL DEFAULT ''",'shifts'=>"TEXT NOT NULL DEFAULT '[]'",'status'=>"TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('pending','active','blocked','rejected'))",'is_operator'=>'INTEGER NOT NULL DEFAULT 0 CHECK(is_operator IN (0,1))','auth_version'=>'INTEGER NOT NULL DEFAULT 1','profile_revision'=>'INTEGER NOT NULL DEFAULT 1','registered_at'=>'TEXT','approved_at'=>'TEXT','approved_by'=>'INTEGER REFERENCES users(id)'];
+            foreach($columns as $name=>$definition)if(!in_array($name,$known,true))$db->exec('ALTER TABLE users ADD COLUMN '.$name.' '.$definition);
+            $db->exec('PRAGMA user_version=7');
         }
         $db->exec('COMMIT');
     } catch (Throwable $e) { $db->exec('ROLLBACK'); throw $e; }
