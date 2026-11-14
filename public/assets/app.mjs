@@ -4,7 +4,7 @@ import {renderReport,individualHtml} from './report-view.mjs?v=bank1';
 const reportFilters=new Map();
 import {cardManagement} from './cards-view.mjs?v=bank1';
 import {buildAudience} from './audience.mjs';
-import {bankView,composeView,versionPanel,bindVersionPanel} from './bank-view.mjs?v=bank1';
+import {bankView,composeView,versionPanel,bindVersionPanel} from './bank-view.mjs?v=bank2';
 import { escapeHtml as esc } from './layout.mjs?v=ui9';
 import { openScanner, stopScanner } from './scanner.mjs?v=bank1';
 const $ = (s, root = document) => root.querySelector(s),

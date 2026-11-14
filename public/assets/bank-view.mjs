@@ -23,18 +23,21 @@ export async function bankView(ui){
     $('#bank-new',root).onclick=()=>editQuestion(null,ui,load);
     $('#bank-filter',root).onsubmit=ev=>{ev.preventDefault();page=1;working($('button',ev.currentTarget),load,root);};await load();
 }
-function editQuestion(question,ui,onSaved){
-    const q=question||{statement:'',discipline:'',area:'',subject:'',difficulty:'medium',answer:'A',options:['','','','','']};
+function editQuestion(question,ui,onSaved,defaults={}){
+    const q=question||{statement:'',discipline:'',area:'',subject:'',difficulty:'medium',answer:'A',options:['','','','',''],...defaults};
     const m=ui.openModal(`<div class="dialog-head"><h2>${question?'Editar questão':'Nova questão'}</h2><button class="quiet" data-close aria-label="Fechar">×</button></div><form id="bank-editor"><div class="field"><label for="statement">Enunciado (texto simples)</label><textarea id="statement" name="statement" required maxlength="20000" rows="5">${esc(q.statement)}</textarea></div><div class="form-grid">${['discipline','area','subject'].map((k,i)=>input(k,['Disciplina','Área','Assunto'][i],'text',`required maxlength="180" value="${esc(q[k])}"`)).join('')}<div class="field"><label for="difficulty">Dificuldade</label><select id="difficulty" name="difficulty">${Object.entries(difficulties).map(([v,l])=>`<option value="${v}" ${v===q.difficulty?'selected':''}>${l}</option>`).join('')}</select></div><div class="field"><label for="option-count">Quantidade de alternativas</label><select id="option-count">${[2,3,4,5].map(n=>`<option ${n===q.options.length?'selected':''}>${n}</option>`).join('')}</select></div><div class="field"><label for="answer">Resposta correta</label><select name="answer" id="answer"></select></div></div><div id="option-editors"></div><p class="small muted">Alterações no banco não modificam provas já finalizadas.</p><button type="submit">Salvar questão</button></form>`);
+    if(defaults.options){$('#option-count',m).disabled=true;$('p.small.muted',m).textContent='Ao salvar, a questão será incluída na seleção manual desta prova e também ficará disponível no banco. Os dados da prova serão mantidos.';$('button[type=submit]',m).textContent='Salvar e incluir na prova';}
     let opts=[...q.options,'','','','',''].slice(0,5),answer=q.answer;
     const draw=()=>{const n=Number($('#option-count',m).value);$('#answer',m).innerHTML=letters.slice(0,n).map(l=>`<option ${l===answer?'selected':''}>${l}</option>`).join('');$('#option-editors',m).innerHTML=opts.slice(0,n).map((v,i)=>`<div class="field"><label for="option-${i}">Alternativa ${letters[i]}</label><textarea id="option-${i}" data-option="${i}" required maxlength="5000" rows="2">${esc(v)}</textarea></div>`).join('');};draw();
     $('#option-count',m).onchange=()=>{$$('[data-option]',m).forEach(e=>opts[Number(e.dataset.option)]=e.value);answer=$('#answer',m).value;draw();};
-    $('#bank-editor',m).onsubmit=ev=>{ev.preventDefault();working($('button[type=submit]',m),async()=>{await ui.api('bank_save',{...Object.fromEntries(new FormData(ev.currentTarget)),id:question?.id,revision:question?.revision,options:$$('[data-option]',m).map(e=>e.value)});m.close();ui.toast('Questão salva no banco.');await onSaved();},m);};
+    $('#bank-editor',m).onsubmit=ev=>{ev.preventDefault();working($('button[type=submit]',m),async()=>{const saved=await ui.api('bank_save',{...Object.fromEntries(new FormData(ev.currentTarget)),id:question?.id,revision:question?.revision,options:$$('[data-option]',m).map(e=>e.value)});m.close();ui.toast('Questão salva no banco.');await onSaved(saved);},m);};
 }
 export async function composeView(ui){
     const root=ui.root,selected=new Map();let page=1,preview=null;
     root.innerHTML=heading('Montar prova ou simulado','Escolha questões, configure as versões e confira o conteúdo antes de finalizar.',`<a class="button secondary" href="#bank">Banco de questões</a>`)+`<form id="compose"><section class="card"><h2>1. Dados da prova</h2><div class="form-grid">${input('compose-name','Título','text','required maxlength="180"')}${input('compose-date','Data','date','required')}${input('compose-duration','Duração em minutos','number','required min="1" max="1440" value="60"')}${input('compose-count','Quantidade de questões','number','required min="1" max="240" value="10"')}${input('compose-versions','Quantidade de versões (A a Z)','number','required min="1" max="26" value="3"')}<div class="field"><label for="compose-mode">Seleção das questões</label><select id="compose-mode"><option value="manual">Escolher no banco</option><option value="automatic">Selecionar automaticamente pelos filtros</option></select></div></div><fieldset><legend>Turmas participantes (todos os estudantes cadastrados)</legend><div class="check-list">${ui.classes.map(c=>`<label class="check-row"><input type="checkbox" name="compose-class" value="${c.id}">${esc(c.name)} · ${c.students} estudantes</label>`).join('')||'<p>Importe estudantes antes de criar uma prova.</p>'}</div></fieldset></section><section class="card"><h2>2. Questões do banco</h2>${filterHtml()}<button type="button" id="compose-search" class="secondary">Pesquisar e filtrar</button><p class="note">Escolha a quantidade de alternativas; todas as questões da prova devem usar essa mesma quantidade. Na seleção automática, o sistema usa os filtros preenchidos.</p><div id="compose-bank"></div></section><section class="card" id="selection-section"><h2>Ordem de referência e posições fixas</h2><p class="small muted">Reordene a seleção com as setas. Fixar uma questão mantém essa posição em todas as versões; fixar uma alternativa conserva a letra original.</p><div id="compose-selection"></div></section><section class="card"><h2>3. Conferir antes de finalizar</h2><p>O sistema prepara as versões sem criar a prova. Ao finalizar, o conteúdo e as ordens serão preservados, mesmo se o banco for editado.</p><button type="submit">Preparar prévia das versões</button></section></form><section class="card" id="compose-preview" hidden></section>`;
     $('#compose-date').value=new Date().toLocaleDateString('en-CA');$('#bank-alternatives').value='5';$$('#bank-alternatives option')[0].remove();
+    const createButton=document.createElement('button');createButton.type='button';createButton.id='compose-new-question';createButton.textContent='Criar questão agora';
+    const questionActions=document.createElement('div');questionActions.className='actions';const searchButton=$('#compose-search');searchButton.replaceWith(questionActions);questionActions.append(searchButton,createButton);
     const invalidate=()=>{preview=null;$('#compose-preview').hidden=true;};
     $('#compose').addEventListener('input',invalidate);$('#compose').addEventListener('change',invalidate);
     const drawSelection=()=>{
@@ -52,6 +55,22 @@ export async function composeView(ui){
         $('#compose-prev').onclick=()=>working($('#compose-prev'),async()=>{page--;await load();},root);$('#compose-next').onclick=()=>working($('#compose-next'),async()=>{page++;await load();},root);
     };
     $('#compose-search').onclick=()=>working($('#compose-search'),async()=>{page=1;await load();},root);
+    createButton.onclick=()=>{
+        const automatic=$('#compose-mode').value==='automatic',current=automatic&&preview?preview.draft.questions:[...selected.values()];
+        if(current.length>=240){ui.toast('A prova já tem o limite de 240 questões. Remova uma questão antes de incluir outra.');return;}
+        const f=filters();
+        editQuestion(null,ui,async saved=>{
+            if(!root.isConnected)return;
+            if(automatic&&preview){selected.clear();for(const q of preview.draft.questions)selected.set(q.id,q);}
+            selected.set(saved.id,{...saved,fixed_position:false,fixed_options:[]});
+            $('#compose-mode').value='manual';$('#selection-section').hidden=false;
+            if(selected.size>Number($('#compose-count').value))$('#compose-count').value=String(selected.size);
+            invalidate();drawSelection();syncChecks();
+            ui.toast('Questão salva no banco e incluída na seleção manual da prova.');
+            try{await load();}catch(error){showError(root,error);}
+            $('#selection-section').scrollIntoView({behavior:'smooth',block:'start'});
+        },{discipline:f.discipline,area:f.area,subject:f.subject,difficulty:f.difficulty||'medium',options:Array(Number(f.alternatives)).fill('')});
+    };
     $('#compose-mode').onchange=()=>{$('#selection-section').hidden=$('#compose-mode').value==='automatic';};
     $('#compose').onsubmit=ev=>{ev.preventDefault();working($('button[type=submit]',ev.currentTarget),async()=>{
         const r=await ui.api('prepare_bank_exam',{name:$('#compose-name').value,date:$('#compose-date').value,duration:Number($('#compose-duration').value),question_count:Number($('#compose-count').value),versions:Number($('#compose-versions').value),class_ids:$$('[name=compose-class]:checked').map(e=>Number(e.value)),alternatives:Number($('#bank-alternatives').value),mode:$('#compose-mode').value,filters:filters(),selected:[...selected.values()].map(q=>({id:q.id,fixed_position:q.fixed_position,fixed_options:q.fixed_options}))});preview=r;drawPreview();

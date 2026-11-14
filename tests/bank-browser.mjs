@@ -38,8 +38,19 @@ try{
     await page.locator('[data-choose]').nth(0).check();await page.locator('[data-choose]').nth(1).check();await page.locator('[data-fixed]').first().check();await page.locator('[data-pin][value="4"]').first().check();
     await page.locator('#compose button[type=submit]').click();await page.locator('#compose-preview').waitFor({state:'visible'});assert.equal(await page.locator('#preview-questions .bank-question').count(),2);
     await page.locator('#preview-version').selectOption('B');assert.equal(await page.locator('#preview-questions .bank-question').count(),2);
+    // Cadastro durante a montagem preserva os dados, as questões e suas travas.
+    await page.locator('#compose-new-question').click();assert.equal(await page.locator('#option-count').inputValue(),'5');assert.ok(await page.locator('#option-count').isDisabled());await page.locator('dialog [data-close]').click();
+    assert.ok(await page.locator('#compose-preview').isVisible());assert.equal(await page.locator('#compose-name').inputValue(),'Prova criada pela interface');
+    await page.locator('#compose-new-question').click();await page.locator('#statement').fill('Criada durante a montagem: quanto vale 10 + 5?');await page.locator('#discipline').fill('Matemática');await page.locator('#area').fill('Exatas');await page.locator('#subject').fill('Adição');
+    for(let i=0;i<5;i++)await page.locator(`#option-${i}`).fill(String(13+i));
+    await page.locator('#answer').selectOption('C');await page.locator('#bank-editor button[type=submit]').click();await page.locator('dialog').waitFor({state:'hidden'});
+    await page.locator('.bank-selected').filter({hasText:'Criada durante a montagem'}).waitFor();assert.equal(await page.locator('.bank-selected').count(),3);assert.equal(await page.locator('#compose-count').inputValue(),'3');assert.ok(await page.locator('#compose-preview').isHidden());
+    assert.equal(await page.locator('#compose-name').inputValue(),'Prova criada pela interface');assert.equal(await page.locator('#bank-search').inputValue(),'Questão de teste');assert.ok(await page.locator('[name=compose-class]').first().isChecked());assert.ok(await page.locator('[data-fixed]').first().isChecked());assert.ok(await page.locator('[data-pin][value="4"]').first().isChecked());
+    const inlineQuestion=(await api('bank_list',undefined,{search:'Criada durante a montagem'})).items[0];assert.equal(inlineQuestion.answer,'C');
+    await page.locator('#compose button[type=submit]').click();await page.locator('#compose-preview').waitFor({state:'visible'});assert.equal(await page.locator('#preview-questions .bank-question').count(),3);
     await page.screenshot({path:'tests/artifacts/bank-preview-desktop.png',fullPage:true});
     await page.locator('#finalize-exam').click();await page.locator('#version-panel').waitFor();assert.equal(await page.locator('[data-pdf]').count(),2);
+    const inlineExam=await api('exam',undefined,{id:Number(new URL(page.url()).hash.split('/')[1])});assert.ok(inlineExam.questions.some(q=>q.statement===inlineQuestion.statement),'questão criada na montagem deve persistir na prova');
     await page.locator('#pdf-columns').selectOption('2');assert.ok((await page.locator('[data-pdf]').first().getAttribute('href')).endsWith('columns=2'));
     await page.locator('[data-view-version]').nth(1).click();await page.locator('dialog[open] .bank-question').first().waitFor();assert.match(await page.locator('dialog h2').textContent(),/Versão B/);await page.locator('dialog [data-close]').click();
     const dl=page.waitForEvent('download');await page.locator('[data-pdf]').first().click();const download=await dl;assert.ok(download.suggestedFilename().endsWith('.pdf'));

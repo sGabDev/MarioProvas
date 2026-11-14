@@ -29,6 +29,15 @@ Edições concorrentes são detectadas pela revisão do cadastro.
    A seleção é mantida ao trocar filtros e páginas. Use as setas para ordenar as
    questões na lista de referência; a quantidade selecionada deve coincidir com
    a quantidade pedida no formulário.
+   Para cadastrar durante a montagem, clique em **Criar questão agora** e
+   preencha o formulário. **Salvar e incluir na prova** salva no banco e inclui
+   a questão na seleção, mantendo os dados da prova, os filtros e as questões
+   anteriores. A quantidade de alternativas acompanha a prova. Se a seleção
+   ultrapassar a quantidade pedida, esse total será aumentado automaticamente.
+   O cadastro ativa a seleção manual; se já houver uma prévia automática, as
+   questões sorteadas nela são mantidas junto com a nova questão. Prepare a
+   prévia novamente antes de finalizar. Fechar o cadastro sem salvar mantém a
+   montagem e a prévia anteriores.
 4. Para uma seleção automática, escolha **Selecionar automaticamente pelos
    filtros**, preencha os filtros e prepare a prévia. Se o banco não tiver
    questões suficientes, o sistema informa o problema sem criar uma prova.
@@ -128,7 +137,7 @@ enunciados, ordens, QR codes ou medições já lidas.
 Preserve `config.php` e `storage/` ao atualizar. A migração v3 é automática e
 aditiva, sem reinstalação ou importação de dados de demonstração. Faça o backup
 privado habitual antes de atualizar uma instalação em uso. Recarregue com
-**Ctrl+F5**; a PWA usa cache v10 e os recursos alterados usam `bank1`.
+**Ctrl+F5**; a PWA usa cache v10 e os recursos alterados têm URLs versionadas.
 
 O PDF usa tFPDF 1.33 e fontes DejaVu locais, em `app/vendor/tfpdf/`, com suas
 licenças e métricas portáveis. O servidor continua dependendo somente do PHP
