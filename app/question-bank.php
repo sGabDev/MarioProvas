@@ -38,9 +38,11 @@ function bank_save(array $body): array {
         $options=array_map(fn($s)=>question_text($s,5000),$options);
         $answer=$body['answer']??'';if(!is_string($answer)||strlen($answer)!==1||$answer<'A'||$answer>chr(64+count($options)))fail('Escolha a alternativa correta.');
         $difficulty=$body['difficulty']??'';if(!in_array($difficulty,['easy','medium','hard'],true))fail('Dificuldade inválida.');
-        $values=[$statement,json_encode($options,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),$answer,text_field($body['discipline']??''),text_field($body['area']??''),text_field($body['subject']??''),$difficulty];
-        if($old){query('UPDATE question_bank SET statement=?,options=?,answer=?,discipline=?,area=?,subject=?,difficulty=?,revision=revision+1,updated_at=CURRENT_TIMESTAMP WHERE id=?',array_merge($values,[$id]));}
-        else {query('INSERT INTO question_bank(statement,options,answer,discipline,area,subject,difficulty,school_id,created_by) VALUES(?,?,?,?,?,?,?,?,?)',array_merge($values,[$u['school_id'],$u['id']]));$id=(int)db()->lastInsertId();}
+        $imageId=array_key_exists('image_id',$body)?$body['image_id']:($old['image_id']??null);
+        if($imageId!==null){if(!is_string($imageId))fail('Imagem inválida.');question_image($imageId);}
+        $values=[$statement,json_encode($options,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),$answer,text_field($body['discipline']??''),text_field($body['area']??''),text_field($body['subject']??''),$difficulty,$imageId];
+        if($old){query('UPDATE question_bank SET statement=?,options=?,answer=?,discipline=?,area=?,subject=?,difficulty=?,image_id=?,revision=revision+1,updated_at=CURRENT_TIMESTAMP WHERE id=?',array_merge($values,[$id]));}
+        else {query('INSERT INTO question_bank(statement,options,answer,discipline,area,subject,difficulty,image_id,school_id,created_by) VALUES(?,?,?,?,?,?,?,?,?,?)',array_merge($values,[$u['school_id'],$u['id']]));$id=(int)db()->lastInsertId();}
         audit($old?'bank.updated':'bank.created',$id);return bank_question($id);
     });
 }
@@ -66,6 +68,7 @@ function prepare_bank_exam(array $body): array {
     $u=require_user();$name=text_field($body['name']??'');$date=(string)($body['date']??'');$d=DateTimeImmutable::createFromFormat('!Y-m-d',$date);
     if(!$d||$d->format('Y-m-d')!==$date)fail('Data inválida.');
     $duration=filter_var($body['duration']??null,FILTER_VALIDATE_INT);if($duration===false||$duration<1||$duration>1440)fail('Duração deve ser de 1 a 1440 minutos.');
+    $pdfColumns=filter_var($body['pdf_columns']??1,FILTER_VALIDATE_INT);if(!in_array($pdfColumns,[1,2],true))fail('Escolha uma ou duas colunas para a prova.');
     $cids=$body['class_ids']??null;if(!is_array($cids)||!$cids)fail('Selecione as turmas.');$cids=array_values(array_unique(array_map('intval',$cids)));
     foreach($cids as $cid)if(!one('SELECT id FROM classes WHERE id=? AND school_id=?',[$cid,$u['school_id']]))fail('Turma fora da escola.');
     $count=filter_var($body['question_count']??null,FILTER_VALIDATE_INT);if($count===false||$count<1||$count>240)fail('Escolha de 1 a 240 questões.');
@@ -87,7 +90,7 @@ function prepare_bank_exam(array $body): array {
     $groups=array_unique(array_map(fn($q)=>$q['discipline'].' · '.$q['area'],$qs));if(count($groups)>30)fail('Limite de 30 combinações de disciplina e área.');
     $versions=(int)($body['versions']??3);if($versions<1||$versions>26)fail('Escolha entre 1 e 26 versões.');
     $plans=[];for($i=0;$i<$versions;$i++)$plans[chr(65+$i)]=distinct_version_plan($qs,array_values($plans));
-    $draft=['name'=>$name,'date'=>$date,'duration'=>$duration,'class_ids'=>$cids,'alternatives'=>$alt,'questions'=>$qs,'versions'=>$plans];
+    $draft=['name'=>$name,'date'=>$date,'duration'=>$duration,'pdf_columns'=>$pdfColumns,'class_ids'=>$cids,'alternatives'=>$alt,'questions'=>$qs,'versions'=>$plans];
     $nonce=bin2hex(random_bytes(24));$_SESSION['bank_exam_preview']=['nonce'=>$nonce,'school_id'=>$u['school_id'],'user_id'=>$u['id'],'expires'=>time()+7200,'draft'=>$draft];
     return ['nonce'=>$nonce,'draft'=>$draft];
 }
@@ -105,12 +108,12 @@ function finalize_bank_exam(array $body): array {
         $d=$p['draft'];$cids=$d['class_ids'];$marks=implode(',',array_fill(0,count($cids),'?'));
         $classes=rows('SELECT id FROM classes WHERE school_id=? AND id IN ('.$marks.')',array_merge([$u['school_id']],$cids));if(count($classes)!==count($cids))fail('Turmas alteradas. Refaça a prévia.');
         $students=rows('SELECT id,class_id FROM students WHERE school_id=? AND class_id IN ('.$marks.')',array_merge([$u['school_id']],$cids));if(!$students)fail('Importe estudantes nas turmas selecionadas.');
-        query('INSERT INTO exams(school_id,class_id,name,date,alternatives,created_by,duration) VALUES(?,?,?,?,?,?,?)',[$u['school_id'],$cids[0],$d['name'],$d['date'],$d['alternatives'],$u['id'],$d['duration']]);$eid=(int)db()->lastInsertId();
+        query('INSERT INTO exams(school_id,class_id,name,date,alternatives,created_by,duration,pdf_columns) VALUES(?,?,?,?,?,?,?,?)',[$u['school_id'],$cids[0],$d['name'],$d['date'],$d['alternatives'],$u['id'],$d['duration'],$d['pdf_columns']??1]);$eid=(int)db()->lastInsertId();
         $areas=[];$ids=[];
         foreach($d['questions'] as $i=>$q){
             $key=$q['discipline'].' · '.$q['area'];if(!isset($areas[$key])){query('INSERT INTO areas(exam_id,name,position) VALUES(?,?,?)',[$eid,$key,count($areas)]);$areas[$key]=(int)db()->lastInsertId();}
             query('INSERT INTO questions(exam_id,area_id,number,answer,discipline) VALUES(?,?,?,?,?)',[$eid,$areas[$key],$i+1,$q['answer'],$q['discipline']]);$qid=(int)db()->lastInsertId();$ids[]=$qid;
-            query('INSERT INTO question_snapshots(question_id,source_id,source_revision,statement,options,area,subject,difficulty,fixed_position,fixed_options) VALUES(?,?,?,?,?,?,?,?,?,?)',[$qid,$q['id'],$q['revision'],$q['statement'],json_encode($q['options'],JSON_UNESCAPED_UNICODE),$q['area'],$q['subject'],$q['difficulty'],$q['fixed_position']?1:0,json_encode($q['fixed_options'])]);
+            query('INSERT INTO question_snapshots(question_id,source_id,source_revision,statement,options,area,subject,difficulty,fixed_position,fixed_options,image_id) VALUES(?,?,?,?,?,?,?,?,?,?,?)',[$qid,$q['id'],$q['revision'],$q['statement'],json_encode($q['options'],JSON_UNESCAPED_UNICODE),$q['area'],$q['subject'],$q['difficulty'],$q['fixed_position']?1:0,json_encode($q['fixed_options']),$q['image_id']??null]);
         }
         foreach($cids as $cid)query('INSERT INTO exam_classes(exam_id,class_id) VALUES(?,?)',[$eid,$cid]);
         foreach($students as $s)query('INSERT INTO enrollments(exam_id,student_id,class_id) VALUES(?,?,?)',[$eid,$s['id'],$s['class_id']]);
@@ -123,7 +126,7 @@ function exam_versions(int $examId): array {
 }
 function version_content(int $examId,int $versionId): array {
     exam($examId);$v=one('SELECT * FROM exam_versions WHERE id=? AND exam_id=?',[$versionId,$examId]);if(!$v)fail('Versão não encontrada.',404);
-    $qs=rows('SELECT vq.position,vq.choice_order,q.id,q.number original_number,q.answer,q.annulled,q.discipline,s.statement,s.options,s.area,s.subject FROM version_questions vq JOIN questions q ON q.id=vq.question_id JOIN question_snapshots s ON s.question_id=q.id WHERE vq.version_id=? ORDER BY vq.position',[$versionId]);
+    $qs=rows('SELECT vq.position,vq.choice_order,q.id,q.number original_number,q.answer,q.annulled,q.discipline,s.statement,s.options,s.area,s.subject,s.image_id FROM version_questions vq JOIN questions q ON q.id=vq.question_id JOIN question_snapshots s ON s.question_id=q.id WHERE vq.version_id=? ORDER BY vq.position',[$versionId]);
     foreach($qs as &$q){$order=json_decode($q['choice_order'],true);$options=json_decode($q['options'],true);$q['options']=array_map(fn($i)=>$options[$i],$order);$q['answer']=chr(65+array_search(ord($q['answer'])-65,$order,true));$q['choice_order']=$order;}unset($q);
     return $v+['questions'=>$qs];
 }

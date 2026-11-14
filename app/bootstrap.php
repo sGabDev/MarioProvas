@@ -53,7 +53,7 @@ function exam_detail(int $id): array {
     $e['versions']=rows('SELECT v.*,b.id booklet_id FROM exam_versions v JOIN booklets b ON b.version_id=v.id AND b.reusable=1 AND b.template_id IS NULL WHERE v.exam_id=? ORDER BY v.label',[$id]);
     if($e['versions']){
         $snapshots=array_column(rows('SELECT s.* FROM question_snapshots s JOIN questions q ON q.id=s.question_id WHERE q.exam_id=?',[$id]),null,'question_id');
-        foreach($e['questions'] as &$q){$q['statement']=$snapshots[$q['id']]['statement'];$q['options']=json_decode($snapshots[$q['id']]['options'],true);}unset($q);
+        foreach($e['questions'] as &$q){$q['statement']=$snapshots[$q['id']]['statement'];$q['options']=json_decode($snapshots[$q['id']]['options'],true);$q['image_id']=$snapshots[$q['id']]['image_id'];}unset($q);
     }
     return $e;
 }

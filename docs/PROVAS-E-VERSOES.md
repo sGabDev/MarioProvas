@@ -9,7 +9,15 @@ continuam no mesmo sistema. Não há serviço externo para gerar os PDFs.
 No menu **Banco de questões**, clique em **Nova questão**. Cadastre enunciado,
 de duas a cinco alternativas, resposta correta, disciplina, área, assunto e
 dificuldade (fácil, média ou difícil). Os textos aceitam quebras de linha e
-caracteres Unicode; são texto simples, sem editor de imagens ou fórmulas LaTeX.
+caracteres Unicode; são texto simples, sem editor de fórmulas LaTeX.
+
+No campo **Imagem do enunciado**, anexe uma imagem **PNG ou JPEG de até 4 MB**.
+Confira a prévia antes de salvar. É possível substituir ou remover a imagem
+na edição. O cadastro também está disponível em **Criar questão agora**, durante
+a montagem da prova. A interface ajusta imagens grandes para até 2000 pixels
+por lado, preservando a proporção. A imagem aparece no enunciado, na conferência
+das versões e no PDF. Cada prova preserva a imagem que recebeu ao ser criada;
+substituir ou remover a imagem no banco não altera provas anteriores.
 
 Use **Pesquisar e filtrar** para combinar texto, disciplina, área, assunto,
 dificuldade e quantidade de alternativas. A busca de texto ignora diferenças
@@ -25,6 +33,10 @@ Edições concorrentes são detectadas pela revisão do cadastro.
    cadastrados nas turmas escolhidas serão incluídos.
 2. Escolha a quantidade de alternativas. Todas as questões da mesma prova devem
    usar essa quantidade, conforme o formato do leitor existente.
+   Em **Colunas das questões e alternativas no PDF**, escolha **1 coluna** ou
+   **2 colunas** antes de preparar a prévia e finalizar. Essa preferência é
+   salva com a prova e usada nos downloads individuais e no PDF com todas as
+   versões. As alternativas acompanham a coluna da sua questão.
 3. Em **Escolher no banco**, pesquise, expanda os enunciados e marque as questões.
    A seleção é mantida ao trocar filtros e páginas. Use as setas para ordenar as
    questões na lista de referência; a quantidade selecionada deve coincidir com
@@ -64,10 +76,15 @@ novo; as novas também usam a cópia preservada do conteúdo.
 Na tela da prova, a tabela **Prova e versões** oferece, para cada versão:
 
 - **Ver questões**: conferência do conteúdo salvo.
-- **Baixar PDF**: arquivo da prova para o estudante, com uma ou duas colunas,
-  cabeçalho, versão, duração, identificação do aluno e paginação. Escolha o
-  número de colunas acima da tabela. Questões extensas continuam em outra
-  coluna/página com indicação de continuação.
+- **Baixar PDF**: começa com a **capa e o cartão-resposta da versão**. As questões
+  começam na folha seguinte, com a quantidade de colunas escolhida na criação,
+  imagens, cabeçalho, duração e paginação. Se quiser uma impressão diferente,
+  também pode ajustar as colunas acima da tabela antes de baixar. Questões
+  extensas continuam em outra coluna/página com indicação de continuação.
+- **Baixar todas as versões em um PDF**: reúne A, B, C etc. no mesmo arquivo.
+  Cada versão começa em uma capa nova, com seu cartão e suas questões em
+  seguida. Os QR codes são os mesmos dos downloads individuais e dos modelos
+  já existentes; reabrir o PDF não gera novas ordens nem novos códigos.
 - **Gabarito PDF**: arquivo exclusivo do professor, correspondente àquela
   versão. **Todos os gabaritos em PDF separado** reúne os gabaritos, iniciando
   cada versão em uma página nova. Os PDFs dos estudantes não contêm respostas.
@@ -82,6 +99,11 @@ O sistema identifica o cartão apresentado; não fotografa o caderno de questõe
 para inferir qual caderno foi entregue ao aluno.
 
 Para mais de 60 questões, imprima todos os blocos do modelo da mesma versão.
+Os PDFs das provas já incluem esses blocos na capa. Se os blocos não couberem
+com as dimensões físicas corretas, o sistema acrescenta folhas de capa para
+eles antes das questões. As bolhas e as referências não são reduzidas para
+forçar todos os cartões a caberem em uma folha. Não é necessário anexar o PNG
+manualmente ao PDF gerado pelo sistema.
 O PNG conserva o formato limpo da integração anterior: ao inserir na capa,
 identifique a versão no texto da capa e mantenha as dimensões físicas
 indicadas. Não recorte QR, margens nem as quatro referências.
@@ -118,6 +140,12 @@ posição impressa e a permutação das alternativas. `booklets.version_id` vinc
 o QR e a tentativa do estudante à versão. Essas relações são persistidas antes
 da impressão; reabrir um PDF não embaralha nada.
 
+`question_images` armazena os arquivos no SQLite privado, com controle de acesso
+por escola. O cadastro aponta para uma imagem imutável; a prova guarda essa
+mesma referência em sua cópia. Trocar a imagem cria outra referência e não
+sobrescreve os bytes utilizados por provas anteriores. `exams.pdf_columns`
+guarda a quantidade de colunas escolhida na criação.
+
 As medições ópticas originais permanecem nos cartões. Ao concluir a leitura, o
 servidor usa o mapa da versão do cartão para converter posições e letras para
 a identidade original de cada questão. As respostas são comparadas ao gabarito
@@ -134,15 +162,19 @@ enunciados, ordens, QR codes ou medições já lidas.
 
 ## Atualização, dependências e verificação
 
-Preserve `config.php` e `storage/` ao atualizar. A migração v3 é automática e
+Preserve `config.php` e `storage/` ao atualizar. A migração v4 é automática e
 aditiva, sem reinstalação ou importação de dados de demonstração. Faça o backup
 privado habitual antes de atualizar uma instalação em uso. Recarregue com
-**Ctrl+F5**; a PWA usa cache v10 e os recursos alterados têm URLs versionadas.
+**Ctrl+F5**; a PWA usa cache v11 e os recursos alterados têm URLs versionadas.
 
 O PDF usa tFPDF 1.33 e fontes DejaVu locais, em `app/vendor/tfpdf/`, com suas
 licenças e métricas portáveis. O servidor continua dependendo somente do PHP
 e das extensões já exigidas. Não precisa de Composer, Node, Python ou rede
 para gerar os arquivos. Não é necessário dar escrita à pasta de código.
+O QR nativo do PDF usa a implementação PHP de Kazuhiko Arase, do mesmo projeto
+do gerador JavaScript já utilizado, em `app/vendor/qrcode/`, com licença MIT
+e versão fixada em `SOURCE.txt`. Os cartões são desenhados em vetor no PDF,
+com bolhas de 4 mm, sem precisar de GD, conversão de SVG ou serviços externos.
 
 Verificações de desenvolvimento, executadas em bancos temporários:
 
@@ -158,8 +190,10 @@ C:\xampp\php\php.exe scripts/check.php
 `bank_integration.py` cobre API e navegador real (Playwright/Chrome), criação e
 edição na interface, prévia, posições fixas, PDFs, isolamento entre escolas,
 imutabilidade, seleção automática, recálculo, anulação, cartões multipágina e
-leitura/revisão/confirmação de uma versão B usando pixels reais de um PNG
-exportado. O acesso à câmera é substituído por um stream desse cartão somente
+leitura/revisão/confirmação de uma versão B usando pixels do cartão extraído
+da capa em PDF, além de conferir o PNG exportado e os blocos de 60 e 1 questões
+da capa multipágina. Verifica PNG com transparência, JPEG, imagens preservadas
+e o PDF único de todas as versões. O acesso à câmera é substituído por um stream desse cartão somente
 no teste. `bank_pdf.py` usa PyMuPDF apenas para conferir os PDFs de teste e gerar
 PNGs para inspeção. Artefatos ficam em `tests/artifacts/`, fora do pacote.
 

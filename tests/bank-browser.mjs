@@ -33,7 +33,7 @@ try{
     await page.locator('#answer').selectOption('C');await page.locator('#bank-editor button[type=submit]').click();await page.locator('dialog').waitFor({state:'hidden'});
     await page.locator('#bank-search').fill('Questão criada pela interface');await page.locator('#bank-filter button').click();await page.getByText('1 questão(ões) · página 1',{exact:true}).waitFor();
     await page.locator('[data-bank-edit]').click();await page.locator('#statement').fill('Questão editada pela interface. Quanto vale 3 + 4?');await page.locator('#bank-editor button[type=submit]').click();await page.locator('dialog').waitFor({state:'hidden'});
-    await go('compose','#compose');await page.locator('#compose-name').fill('Prova criada pela interface');await page.locator('#compose-count').fill('2');await page.locator('#compose-versions').fill('2');await page.locator('[name=compose-class]').first().check();
+    await go('compose','#compose');await page.locator('#compose-name').fill('Prova criada pela interface');await page.locator('#compose-count').fill('2');await page.locator('#compose-versions').fill('2');await page.locator('#compose-columns').selectOption('2');await page.locator('[name=compose-class]').first().check();
     await page.locator('#bank-search').fill('Questão de teste');await page.locator('#compose-search').click();await page.getByText('7 questões disponíveis · página 1',{exact:true}).waitFor();
     await page.locator('[data-choose]').nth(0).check();await page.locator('[data-choose]').nth(1).check();await page.locator('[data-fixed]').first().check();await page.locator('[data-pin][value="4"]').first().check();
     await page.locator('#compose button[type=submit]').click();await page.locator('#compose-preview').waitFor({state:'visible'});assert.equal(await page.locator('#preview-questions .bank-question').count(),2);
@@ -42,19 +42,26 @@ try{
     await page.locator('#compose-new-question').click();assert.equal(await page.locator('#option-count').inputValue(),'5');assert.ok(await page.locator('#option-count').isDisabled());await page.locator('dialog [data-close]').click();
     assert.ok(await page.locator('#compose-preview').isVisible());assert.equal(await page.locator('#compose-name').inputValue(),'Prova criada pela interface');
     await page.locator('#compose-new-question').click();await page.locator('#statement').fill('Criada durante a montagem: quanto vale 10 + 5?');await page.locator('#discipline').fill('Matemática');await page.locator('#area').fill('Exatas');await page.locator('#subject').fill('Adição');
+    await page.locator('#question-image-file').setInputFiles('tests/artifacts/question-diagram.png');await page.locator('#question-image-preview').waitFor({state:'visible'});
+    await page.setViewportSize({width:390,height:844});await page.locator('#question-image-preview').scrollIntoViewIfNeeded();assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await page.screenshot({path:'tests/artifacts/bank-image-editor-mobile.png'});await page.setViewportSize({width:1366,height:900});
     for(let i=0;i<5;i++)await page.locator(`#option-${i}`).fill(String(13+i));
     await page.locator('#answer').selectOption('C');await page.locator('#bank-editor button[type=submit]').click();await page.locator('dialog').waitFor({state:'hidden'});
     await page.locator('.bank-selected').filter({hasText:'Criada durante a montagem'}).waitFor();assert.equal(await page.locator('.bank-selected').count(),3);assert.equal(await page.locator('#compose-count').inputValue(),'3');assert.ok(await page.locator('#compose-preview').isHidden());
     assert.equal(await page.locator('#compose-name').inputValue(),'Prova criada pela interface');assert.equal(await page.locator('#bank-search').inputValue(),'Questão de teste');assert.ok(await page.locator('[name=compose-class]').first().isChecked());assert.ok(await page.locator('[data-fixed]').first().isChecked());assert.ok(await page.locator('[data-pin][value="4"]').first().isChecked());
-    const inlineQuestion=(await api('bank_list',undefined,{search:'Criada durante a montagem'})).items[0];assert.equal(inlineQuestion.answer,'C');
+    const inlineQuestion=(await api('bank_list',undefined,{search:'Criada durante a montagem'})).items[0];assert.equal(inlineQuestion.answer,'C');assert.ok(inlineQuestion.image_id,'imagem enviada na montagem deve ser persistida');
     await page.locator('#compose button[type=submit]').click();await page.locator('#compose-preview').waitFor({state:'visible'});assert.equal(await page.locator('#preview-questions .bank-question').count(),3);
     await page.screenshot({path:'tests/artifacts/bank-preview-desktop.png',fullPage:true});
-    await page.locator('#finalize-exam').click();await page.locator('#version-panel').waitFor();assert.equal(await page.locator('[data-pdf]').count(),2);
+    await page.locator('#preview-questions img.question-image').waitFor({state:'visible'});
+    await page.locator('#finalize-exam').click();await page.locator('#version-panel').waitFor();assert.equal(await page.locator('[data-pdf]').count(),3);
     const inlineExam=await api('exam',undefined,{id:Number(new URL(page.url()).hash.split('/')[1])});assert.ok(inlineExam.questions.some(q=>q.statement===inlineQuestion.statement),'questão criada na montagem deve persistir na prova');
+    assert.equal(inlineExam.pdf_columns,2);assert.equal(await page.locator('#pdf-columns').inputValue(),'2');
     await page.locator('#pdf-columns').selectOption('2');assert.ok((await page.locator('[data-pdf]').first().getAttribute('href')).endsWith('columns=2'));
     await page.locator('[data-view-version]').nth(1).click();await page.locator('dialog[open] .bank-question').first().waitFor();assert.match(await page.locator('dialog h2').textContent(),/Versão B/);await page.locator('dialog [data-close]').click();
     const dl=page.waitForEvent('download');await page.locator('[data-pdf]').first().click();const download=await dl;assert.ok(download.suggestedFilename().endsWith('.pdf'));
     await download.saveAs('tests/artifacts/bank-ui-prova.pdf');
+    const allEvent=page.waitForEvent('download');await page.locator('#pdf-all-versions').click();const allDownload=await allEvent;assert.match(allDownload.suggestedFilename(),/todas-versoes/);await allDownload.saveAs('tests/artifacts/bank-ui-todas-versoes.pdf');
+    await go('bank','#bank-new');await page.locator('#bank-search').fill('Criada durante a montagem');await page.locator('#bank-filter button').click();await page.getByText('1 questão(ões) · página 1',{exact:true}).waitFor();await page.locator(`[data-bank-edit="${inlineQuestion.id}"]`).click();await page.locator('#question-image-preview').waitFor({state:'visible'});await page.locator('#question-image-remove').click();assert.ok(await page.locator('#question-image-preview').isHidden());await page.locator('#bank-editor button[type=submit]').click();await page.locator('dialog').waitFor({state:'hidden'});
+    assert.equal((await api('bank_question',undefined,{id:inlineQuestion.id})).image_id,null);assert.ok((await api('exam',undefined,{id:inlineExam.id})).questions.some(q=>q.image_id===inlineQuestion.image_id),'remover imagem pela interface deve preservar prova finalizada');
     // Exercita PNG real da versão B: QR e bolhas vêm do arquivo exportado.
     await go(`exam/${eid}`,'#version-panel');const e=await api('exam',undefined,{id:eid}),v=e.versions[1],content=await api('version_content',undefined,{exam_id:eid,version_id:v.id});
     await page.goto(`${base}print?exam=${eid}&sets=${v.booklet_id}`);await page.locator('.download-png').waitFor();assert.match(await page.locator('.printed-version').textContent(),/Versão B/);
@@ -64,7 +71,17 @@ try{
     for(let i=0;i<8;i++){const p=bubblePosition(i,content.questions[i].answer.charCodeAt(0)-65,layout);ctx.fillStyle='#111';ctx.beginPath();ctx.arc(p.x*scale,p.y*scale,p.r*.85*scale,0,Math.PI*2);ctx.fill();}
     const bitmap=ctx.getImageData(0,0,canvas.width,canvas.height),qr=decodeQr(bitmap,jsQR),card=(await api('cards',undefined,{exam_id:eid})).cards.find(c=>c.version_id===v.id);
     assert.equal(qr.data,card.token);const reading=readCard(bitmap,qr,8,5);assert.deepEqual(reading.answers.map(a=>a[0]),content.questions.map(q=>q.answer));
-    const marked=canvas.toDataURL('image/png');
+    // Agora usa o cartão extraído do PDF da capa para a revisão da câmera.
+    const cover=await loadImage('tests/artifacts/bank-cover-b-card.png'),pdfCanvas=createCanvas(cover.width,cover.height),pdfCtx=pdfCanvas.getContext('2d');pdfCtx.drawImage(cover,0,0);
+    let pdfBitmap=pdfCtx.getImageData(0,0,cover.width,cover.height),pdfQr=decodeQr(pdfBitmap,jsQR);assert.equal(pdfQr.data,card.token);
+    const blankCard=readCard(pdfBitmap,pdfQr,8,5);assert.equal(blankCard.blank,8);const m=blankCard.markers,l=blankCard.layout,sx=(m[1].x-m[0].x)/(l.markers[1].x-l.markers[0].x),sy=(m[3].y-m[0].y)/(l.markers[3].y-l.markers[0].y);
+    const multiCards=(await api('cards',undefined,{exam_id:process.env.MARIOPROVAS_MULTI_EXAM})).cards;
+    for(let i=0;i<2;i++){
+        const image=await loadImage(`tests/artifacts/bank-cover-multi-${i+1}.png`),surface=createCanvas(image.width,image.height),cx=surface.getContext('2d');cx.drawImage(image,0,0);const bitmap=cx.getImageData(0,0,image.width,image.height),qr=decodeQr(bitmap,jsQR);assert.equal(qr.data,multiCards[i].token);assert.equal(readCard(bitmap,qr,multiCards[i].question_count,5).blank,multiCards[i].question_count);
+    }
+    for(let i=0;i<8;i++){const p=bubblePosition(i,content.questions[i].answer.charCodeAt(0)-65,l);pdfCtx.fillStyle='#111';pdfCtx.beginPath();pdfCtx.arc(m[0].x+(p.x-l.markers[0].x)*sx,m[0].y+(p.y-l.markers[0].y)*sy,p.r*.85*Math.min(sx,sy),0,Math.PI*2);pdfCtx.fill();}
+    pdfBitmap=pdfCtx.getImageData(0,0,cover.width,cover.height);assert.deepEqual(readCard(pdfBitmap,pdfQr,8,5).answers.map(a=>a[0]),content.questions.map(q=>q.answer));
+    const marked=pdfCanvas.toDataURL('image/png');
     // A câmera de teste é um stream de pixels reais do cartão preenchido.
     await page.addInitScript(({marked})=>{
         let stream;

@@ -1,0 +1,2 @@
+https://raw.githubusercontent.com/kazuhikoarase/qrcode-generator/95af9c2e1249337047ca478ccf98650a0a30af13/php/qrcode.php
+MIT, Copyright (c) 2009 Kazuhiko Arase

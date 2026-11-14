@@ -1,7 +1,8 @@
 """Banco, versões, PDFs e correção via API real, somente em SQLite temporário.
 Execute: python tests/bank_integration.py. Nenhum dado da escola é alterado.
 """
-import copy, hashlib, http.cookiejar, json, os, pathlib, secrets, socket, sqlite3, subprocess, tempfile, time, urllib.request, urllib.error, urllib.parse
+import copy, hashlib, http.cookiejar, json, os, pathlib, secrets, socket, sqlite3, struct, subprocess, tempfile, time, urllib.request, urllib.error, urllib.parse, zlib
+import pymupdf
 
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 PHP=os.environ.get('PHP_BIN',r'C:\xampp\php\php.exe' if os.name=='nt' else 'php')
@@ -18,9 +19,13 @@ def check(value,label):
     checks.append(label);print('OK:',label,flush=True)
 class Client:
     def __init__(self):self.opener=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()));self.csrf=''
-    def call(self,action,data=None,expected=200,raw=False,csrf=True,**params):
+    def call(self,action,data=None,expected=200,raw=False,csrf=True,multipart=None,**params):
         headers={};payload=None
-        if data is not None:
+        if multipart is not None:
+            content,mime=multipart;boundary='MarioProvas'+secrets.token_hex(8)
+            payload=(f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="imagem"\r\nContent-Type: {mime}\r\n\r\n').encode()+content+(f'\r\n--{boundary}--\r\n').encode();headers['Content-Type']='multipart/form-data; boundary='+boundary
+            if csrf:headers['X-CSRF-Token']=self.csrf
+        elif data is not None:
             payload=json.dumps(data).encode();headers['Content-Type']='application/json'
             if csrf:headers['X-CSRF-Token']=self.csrf
         req=urllib.request.Request(BASE+'api.php?'+urllib.parse.urlencode({'action':action,**params}),data=payload,headers=headers)
@@ -51,8 +56,28 @@ try:
         classes=[db.execute('INSERT INTO classes(school_id,name) VALUES(?,?)',(school,n)).lastrowid for n in ['Turma teste A','Turma teste B']]
         students=[db.execute('INSERT INTO students(school_id,external_id,name,class_id) VALUES(?,?,?,?)',(school,str(i),f'Estudante fictício {i}',classes[i%2])).lastrowid for i in range(8)]
     db.close()
+    # Imagem raster real: gráfico simples, exclusivamente como fixture de teste.
+    def chunk(tag,data):return struct.pack('>I',len(data))+tag+data+struct.pack('>I',zlib.crc32(tag+data)&0xffffffff)
+    pixels=bytearray()
+    for y in range(240):
+        pixels.append(0)
+        for x in range(600):
+            color=(255,255,255)
+            if x in range(35,39) or y in range(209,213) and 35<=x<=565:color=(25,45,35)
+            for left,height,cvalue in [(100,70,(60,125,95)),(260,120,(80,130,190)),(420,170,(205,145,55))]:
+                if left<=x<left+70 and 210-height<=y<210:color=cvalue
+            pixels.extend((*color,0 if color==(255,255,255) else 255))
+    png=b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',600,240,8,6,0,0,0))+chunk(b'IDAT',zlib.compress(pixels))+chunk(b'IEND',b'')
+    (ART/'question-diagram.png').write_bytes(png)
+    image=c.call('question_image_upload',multipart=(png,'image/png'))
+    check(c.call('question_image',id=image['id'],raw=True)==png,'upload e consulta autenticada de imagem PNG')
+    jpeg=pymupdf.Pixmap(pymupdf.Pixmap(png),0).tobytes('jpeg');imageJpeg=c.call('question_image_upload',multipart=(jpeg,'image/jpeg'))
+    check(c.call('question_image',id=imageJpeg['id'],raw=True)==jpeg,'upload e consulta autenticada de imagem JPEG')
+    c.call('question_image_upload',multipart=(png,'image/png'),csrf=False,expected=403)
+    c.call('question_image_upload',multipart=(b'<svg/>','image/svg+xml'),expected=422)
+    c.call('question_image_upload',multipart=(b'JPEG invalido','image/jpeg'),expected=422)
     base={'statement':'Leia a situação e escolha a resposta correta.\nQual é o valor de 2² + 3?','options':['Sete','Cinco','Nove','Onze','Treze'],'answer':'A','discipline':'Matemática','area':'Ciências exatas','subject':'Potências','difficulty':'medium'}
-    qs=[c.call('bank_save',{**base,'statement':f'Questão de teste {i+1}. '+base['statement'],'answer':chr(65+i%5),'discipline':'Matemática' if i%2 else 'Português'}) for i in range(8)]
+    qs=[c.call('bank_save',{**base,'statement':f'Questão de teste {i+1}. '+base['statement'],'answer':chr(65+i%5),'discipline':'Matemática' if i%2 else 'Português','image_id':image['id'] if i==0 else imageJpeg['id'] if i==1 else None}) for i in range(8)]
     ids=[q['id'] for q in qs]
     check(c.call('bank_list',search='SITUAÇÃO')['total']==8 and c.call('bank_list',discipline='Matemática')['total']==4 and c.call('bank_list',difficulty='hard')['total']==0,'cadastro, busca com acentos e filtros reais')
     c.call('bank_save',base,csrf=False,expected=403);c.call('bank_save',{**base,'answer':'Z'},expected=422);c.call('bank_save',{**base,'options':['Só uma']},expected=422)
@@ -60,7 +85,7 @@ try:
     fixed={'name':'Todas fixas','date':'2026-11-13','duration':30,'question_count':1,'class_ids':classes,'alternatives':5,'versions':2,'selected':[{'id':ids[0],'fixed_position':True,'fixed_options':[0,1,2,3,4]}]}
     c.call('prepare_bank_exam',fixed,expected=422)
     check(True,'restrições que impedem versões distintas são rejeitadas sem criar prova')
-    draft=prepared(c,ids,classes)
+    draft=prepared(c,ids,classes,pdf_columns=2)
     check(not c.call('dashboard')['exams'],'prévia não cria prova, cartões ou resultados')
     for plan in draft['draft']['versions'].values():
         assert plan[0]['index']==0 and plan[0]['choice_order'][0]==0 and plan[0]['choice_order'][4]==4
@@ -68,13 +93,14 @@ try:
         assert all(sorted(p['choice_order'])==list(range(5)) for p in plan)
     c.call('finalize_bank_exam',{'nonce':'errado'},expected=409)
     eid=finalize(c,draft);e=detail(c,eid)
-    check(len(e['versions'])==3 and len(e['booklets'])==3 and e['duration']==90,'finalização persiste versões A/B/C e três modelos de cartão')
+    check(len(e['versions'])==3 and len(e['booklets'])==3 and e['duration']==90 and e['pdf_columns']==2,'finalização persiste versões A/B/C, cartões e escolha de duas colunas')
     c.call('finalize_bank_exam',{'nonce':draft['nonce']},expected=409)
     versions=[c.call('version_content',exam_id=eid,version_id=v['id']) for v in e['versions']]
     check(all(v['questions'][0]['original_number']==1 and v['questions'][0]['choice_order'][0]==0 and v['questions'][0]['choice_order'][4]==4 for v in versions),'questão e alternativas fixas sobrevivem à gravação')
     check(all(v['questions']==[{**q} for q in c.call('version_content',exam_id=eid,version_id=v['id'])['questions']] for v in versions),'reabrir versão conserva exatamente ordem, conteúdo e gabarito')
-    before=copy.deepcopy(versions);c.call('bank_save',{**qs[0],'statement':'QUESTÃO EDITADA DEPOIS DA APLICAÇÃO','options':['Mudou']*5,'answer':'D'})
+    before=copy.deepcopy(versions);c.call('bank_save',{**qs[0],'statement':'QUESTÃO EDITADA DEPOIS DA APLICAÇÃO','options':['Mudou']*5,'answer':'D','image_id':None})
     check(before==[c.call('version_content',exam_id=eid,version_id=v['id']) for v in e['versions']],'editar banco não muda prova finalizada, alternativas ou gabaritos')
+    check(all(v['questions'][0]['image_id']==image['id'] for v in versions) and c.call('bank_question',id=ids[0])['image_id'] is None,'remover imagem do banco preserva a imagem da prova e de todas as versões')
     cards=c.call('cards',exam_id=eid)['cards'];lookup={v['id']:v for v in versions}
     results=[]
     for i,card in enumerate(cards):
@@ -111,6 +137,7 @@ try:
     for columns in [1,2]:
         pdf=c.call('exam_pdf',exam_id=eid,version_id=e['versions'][1]['id'],columns=columns,raw=True);assert pdf.startswith(b'%PDF-');(ART/f'bank-prova-{columns}-colunas.pdf').write_bytes(pdf)
     pdf=c.call('exam_pdf',exam_id=eid,key=1,raw=True);assert pdf.startswith(b'%PDF-');(ART/'bank-gabaritos.pdf').write_bytes(pdf)
+    (ART/'bank-todas-versoes.pdf').write_bytes(c.call('exam_pdf',exam_id=eid,raw=True))
     check(True,'downloads reais de PDF em uma e duas colunas e gabaritos separados')
     # Seleção automática, insuficiência e validação do tamanho uniforme.
     auto=prepared(c,ids[:3],classes,mode='automatic',filters={'discipline':'Matemática','difficulty':'medium'})
@@ -136,9 +163,11 @@ try:
     db.close()
     b=Client();b.call('state');b.call('login',{'email':'other@example.invalid','password':password})
     b.call('bank_question',id=ids[0],expected=404);b.call('bank_save',{**qs[0]},expected=404);b.call('version_content',exam_id=eid,version_id=e['versions'][0]['id'],expected=404);b.call('exam_pdf',exam_id=eid,expected=404);b.call('add_versions',{'exam_id':eid,'count':1},expected=404)
+    b.call('question_image',id=image['id'],expected=404);b.call('bank_save',{**base,'image_id':image['id']},expected=404)
     check(b.call('bank_list')['total']==0,'banco, versões e PDFs isolados por escola')
     with sqlite3.connect(tmp/'test.sqlite') as db:check(not db.execute('PRAGMA foreign_key_check').fetchall(),'integridade referencial após correções, novas versões e edição do banco')
     db.close()
+    subprocess.run(['python','tests/bank_pdf.py'],cwd=ROOT,check=True,timeout=60)
     browser_env=os.environ.copy();browser_env.update(MARIOPROVAS_TEST_URL=BASE,MARIOPROVAS_TEST_EMAIL=email,MARIOPROVAS_TEST_PASSWORD=password,MARIOPROVAS_TEST_EXAM=str(eid),MARIOPROVAS_MULTI_EXAM=str(multi))
     subprocess.run(['node','tests/bank-browser.mjs'],cwd=ROOT,env=browser_env,check=True,timeout=180)
     print(f'Concluído: {len(checks)} verificações de banco/versões + interface em navegador.',flush=True)

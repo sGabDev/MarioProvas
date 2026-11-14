@@ -6,12 +6,13 @@ require dirname(__DIR__).'/app/grading.php';
 require dirname(__DIR__).'/app/assessment.php';
 require dirname(__DIR__).'/app/reports.php';
 require dirname(__DIR__).'/app/question-bank.php';
+require dirname(__DIR__).'/app/question-images.php';
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, private');header('X-Content-Type-Options: nosniff');header('Referrer-Policy: same-origin');
 start_session();
 try {
     $action=$_GET['action']??'state';$method=$_SERVER['REQUEST_METHOD'];
-    $write=['login','logout','setup','upload','preview','import','student_update','class_update','create_exam','generate_cards','scan','team_create','update_key','update_grading','bank_save','bank_archive','prepare_bank_exam','finalize_bank_exam','add_versions'];
+    $write=['login','logout','setup','upload','preview','import','student_update','class_update','create_exam','generate_cards','scan','team_create','update_key','update_grading','bank_save','bank_archive','prepare_bank_exam','finalize_bank_exam','add_versions','question_image_upload'];
     if(in_array($action,$write,true)){
         if($method!=='POST')fail('Método não permitido.',405);
         if(!hash_equals($_SESSION['csrf'],$_SERVER['HTTP_X_CSRF_TOKEN']??''))fail('Sessão expirada. Atualize a página.',403);
@@ -35,6 +36,8 @@ try {
     } else {
         $u=require_user();$school=(int)$u['school_id'];
         switch($action){
+            case 'question_image_upload':$out=upload_question_image();break;
+            case 'question_image':output_question_image(strval_trim($_GET['id']??''));
             case 'bank_list':$out=bank_list($_GET);break;
             case 'bank_question':$out=bank_question((int)($_GET['id']??0));break;
             case 'bank_save':$out=bank_save($body);break;
@@ -43,7 +46,7 @@ try {
             case 'finalize_bank_exam':$out=finalize_bank_exam($body);break;
             case 'add_versions':$out=add_exam_versions((int)($body['exam_id']??0),(int)($body['count']??1));break;
             case 'version_content':$out=version_content((int)($_GET['exam_id']??0),(int)($_GET['version_id']??0));break;
-            case 'exam_pdf':require dirname(__DIR__).'/app/exam-pdf.php';export_exam_pdf((int)($_GET['exam_id']??0),(int)($_GET['version_id']??0),(int)($_GET['columns']??1),($_GET['key']??'0')==='1');
+            case 'exam_pdf':require dirname(__DIR__).'/app/exam-pdf.php';export_exam_pdf((int)($_GET['exam_id']??0),(int)($_GET['version_id']??0),isset($_GET['columns'])?(int)$_GET['columns']:null,($_GET['key']??'0')==='1');
             case 'logout': $_SESSION=[];session_regenerate_id(true);$_SESSION['csrf']=bin2hex(random_bytes(32));$out=['csrf'=>$_SESSION['csrf']];break;
             case 'dashboard':
                 $out=['school'=>one('SELECT name FROM schools WHERE id=?',[$school])['name'],'classes'=>rows('SELECT c.*,COUNT(s.id) students FROM classes c LEFT JOIN students s ON s.class_id=c.id WHERE c.school_id=? GROUP BY c.id ORDER BY c.name',[$school]),'exams'=>array_map('with_exam_classes',rows('SELECT e.*,(SELECT COUNT(*) FROM questions WHERE exam_id=e.id) questions,(SELECT COUNT(*) FROM enrollments WHERE exam_id=e.id) enrolled,(SELECT COUNT(*) FROM results WHERE exam_id=e.id) graded FROM exams e WHERE e.school_id=? ORDER BY e.date DESC,e.id DESC',[$school])),'student_count'=>(int)one('SELECT COUNT(*) n FROM students WHERE school_id=?',[$school])['n'],'result_count'=>(int)one('SELECT COUNT(*) n FROM results r JOIN exams e ON e.id=r.exam_id WHERE e.school_id=?',[$school])['n']];break;

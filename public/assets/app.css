@@ -284,6 +284,7 @@ dialog::backdrop { background: #102c29a6; }
 .bank-list-item .check-row{display:inline-flex}
 .bank-question{padding:16px 0;border-bottom:1px solid var(--border,#dce5e0);overflow-wrap:anywhere}
 .question-text{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6}
+.question-image{display:block;max-width:100%;max-height:360px;object-fit:contain;margin:12px 0}
 .question-options{padding-left:28px}
 .question-options li{padding-left:6px;margin:8px 0}
 .bank-selected fieldset{margin:8px 0}

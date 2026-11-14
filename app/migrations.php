@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 function migrate(PDO $db): void {
-    if ((int)$db->query('PRAGMA user_version')->fetchColumn() >= 3) return;
+    if ((int)$db->query('PRAGMA user_version')->fetchColumn() >= 4) return;
     $db->exec('BEGIN IMMEDIATE');
     try {
         if ((int)$db->query('PRAGMA user_version')->fetchColumn() < 1) {
@@ -57,6 +57,14 @@ function migrate(PDO $db): void {
             if(!in_array('version_id',array_column($db->query('PRAGMA table_info(booklets)')->fetchAll(),'name'),true))$db->exec('ALTER TABLE booklets ADD COLUMN version_id INTEGER REFERENCES exam_versions(id)');
             $db->exec('CREATE UNIQUE INDEX IF NOT EXISTS version_template ON booklets(version_id) WHERE reusable=1 AND template_id IS NULL');
             $db->exec('PRAGMA user_version=3');
+        }
+        if ((int)$db->query('PRAGMA user_version')->fetchColumn() < 4) {
+            $db->exec('CREATE TABLE IF NOT EXISTS question_images(id TEXT PRIMARY KEY,school_id INTEGER NOT NULL REFERENCES schools(id),mime TEXT NOT NULL,width INTEGER NOT NULL,height INTEGER NOT NULL,data BLOB NOT NULL,created_by INTEGER NOT NULL REFERENCES users(id),created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)');
+            foreach(['question_bank'=>['image_id'=>'TEXT REFERENCES question_images(id)'],'question_snapshots'=>['image_id'=>'TEXT REFERENCES question_images(id)'],'exams'=>['pdf_columns'=>'INTEGER NOT NULL DEFAULT 1']] as $table=>$definitions){
+                $known=array_column($db->query('PRAGMA table_info('.$table.')')->fetchAll(),'name');
+                foreach($definitions as $name=>$definition)if(!in_array($name,$known,true))$db->exec('ALTER TABLE '.$table.' ADD COLUMN '.$name.' '.$definition);
+            }
+            $db->exec('PRAGMA user_version=4');
         }
         $db->exec('COMMIT');
     } catch (Throwable $e) { $db->exec('ROLLBACK'); throw $e; }
