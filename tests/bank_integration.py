@@ -237,6 +237,8 @@ try:
     ui_cover[0].get_pixmap(matrix=pymupdf.Matrix(1.3,1.3)).save(ART/'bank-ui-cover-preview.png')
     ui_all=pymupdf.open(ART/'bank-ui-todas-versoes.pdf');assert sum('CAPA PERSONALIZADA DE TESTE' in p.get_text() for p in ui_all)==2
     check(True,'PDF moderno preparado no navegador preserva capa, cartão e todas as versões no download real')
+    from exam_deletion import verify as verify_deletion
+    check(verify_deletion(c,Client,tmp/'test.sqlite',eid,multi,students,password,BASE,ROOT),'exclusão por administrador/operador, autorização, concorrência, resultados/parciais, isolamento e preservação do banco/alunos')
     print(f'Concluído: {len(checks)} verificações de banco/versões + interface em navegador.',flush=True)
 except Exception:
     log.flush();print((tmp/'server.log').read_text(errors='replace')[-4500:]);raise

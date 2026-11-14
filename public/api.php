@@ -10,12 +10,13 @@ require dirname(__DIR__).'/app/question-bank.php';
 require dirname(__DIR__).'/app/question-images.php';
 require dirname(__DIR__).'/app/exam-covers.php';
 require dirname(__DIR__).'/app/accounts.php';
+require dirname(__DIR__).'/app/exam-deletion.php';
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, private');header('X-Content-Type-Options: nosniff');header('Referrer-Policy: same-origin');
 start_session();
 try {
     $action=$_GET['action']??'state';$method=$_SERVER['REQUEST_METHOD'];
-    $write=['login','register','logout','setup','upload','preview','import','student_update','class_update','create_exam','generate_cards','scan','team_create','team_update','team_review','update_key','update_grading','bank_save','bank_archive','prepare_bank_exam','finalize_bank_exam','add_versions','question_image_upload','exam_cover_upload','save_pdf_settings'];
+    $write=['login','register','logout','setup','upload','preview','import','student_update','class_update','create_exam','generate_cards','scan','team_create','team_update','team_review','update_key','update_grading','bank_save','bank_archive','prepare_bank_exam','finalize_bank_exam','add_versions','question_image_upload','exam_cover_upload','save_pdf_settings','delete_exam'];
     if(in_array($action,$write,true)){
         if($method!=='POST')fail('Método não permitido.',405);
         if(!hash_equals($_SESSION['csrf'],$_SERVER['HTTP_X_CSRF_TOKEN']??''))fail('Sessão expirada. Atualize a página.',403);
@@ -44,6 +45,8 @@ try {
     } else {
         $u=require_user();$school=(int)$u['school_id'];
         switch($action){
+            case 'exam_deletion_preview':$out=preview_exam_deletion((int)($_GET['exam_id']??0));break;
+            case 'delete_exam':$out=delete_exam($body);break;
             case 'exam_cover_upload':$out=upload_exam_cover();break;
             case 'exam_cover':output_exam_cover(strval_trim($_GET['id']??''));
             case 'save_pdf_settings':$out=save_pdf_settings($body);break;
@@ -62,7 +65,7 @@ try {
                 require dirname(__DIR__).'/app/exam-pdf.php';export_exam_pdf((int)($_GET['exam_id']??0),(int)($_GET['version_id']??0),isset($_GET['columns'])?(int)$_GET['columns']:null,($_GET['key']??'0')==='1',$_GET,($_GET['cover_only']??'0')==='1');
             case 'logout': $_SESSION=[];session_regenerate_id(true);$_SESSION['csrf']=bin2hex(random_bytes(32));$out=['csrf'=>$_SESSION['csrf']];break;
             case 'dashboard':
-                $out=['school'=>one('SELECT name FROM schools WHERE id=?',[$school])['name'],'classes'=>rows('SELECT c.*,COUNT(s.id) students FROM classes c LEFT JOIN students s ON s.class_id=c.id WHERE c.school_id=? GROUP BY c.id ORDER BY c.name',[$school]),'exams'=>array_map('with_exam_classes',rows('SELECT e.*,(SELECT COUNT(*) FROM questions WHERE exam_id=e.id) questions,(SELECT COUNT(*) FROM enrollments WHERE exam_id=e.id) enrolled,(SELECT COUNT(*) FROM results WHERE exam_id=e.id) graded FROM exams e WHERE e.school_id=? ORDER BY e.date DESC,e.id DESC',[$school])),'student_count'=>(int)one('SELECT COUNT(*) n FROM students WHERE school_id=?',[$school])['n'],'result_count'=>(int)one('SELECT COUNT(*) n FROM results r JOIN exams e ON e.id=r.exam_id WHERE e.school_id=?',[$school])['n']];break;
+                $out=['school'=>one('SELECT name FROM schools WHERE id=?',[$school])['name'],'classes'=>rows('SELECT c.*,COUNT(s.id) students FROM classes c LEFT JOIN students s ON s.class_id=c.id WHERE c.school_id=? GROUP BY c.id ORDER BY c.name',[$school]),'exams'=>array_map('with_exam_classes',rows('SELECT e.*,EXISTS(SELECT 1 FROM exam_versions v WHERE v.exam_id=e.id) has_content,(SELECT COUNT(*) FROM questions WHERE exam_id=e.id) questions,(SELECT COUNT(*) FROM enrollments WHERE exam_id=e.id) enrolled,(SELECT COUNT(*) FROM results WHERE exam_id=e.id) graded FROM exams e WHERE e.school_id=? ORDER BY e.date DESC,e.id DESC',[$school])),'student_count'=>(int)one('SELECT COUNT(*) n FROM students WHERE school_id=?',[$school])['n'],'result_count'=>(int)one('SELECT COUNT(*) n FROM results r JOIN exams e ON e.id=r.exam_id WHERE e.school_id=?',[$school])['n']];break;
             case 'class_update':
                 $cid=(int)($body['id']??0);if(!one('SELECT id FROM classes WHERE id=? AND school_id=?',[$cid,$school]))fail('Turma não encontrada.',404);
                 $grade=strval_trim($body['grade_name']??'');if(mb_strlen($grade)>180||preg_match('/[\x00-\x1F]/u',$grade))fail('Série inválida.');

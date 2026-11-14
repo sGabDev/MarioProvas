@@ -1,3 +1,4 @@
+import {confirmExamDeletion} from './exam-deletion.mjs?v=delete1';
 import {registrationView,teamView as renderTeam} from './accounts-view.mjs?v=accounts1';
 import {initializeUi,setupNavigation,describeModal} from './ui.mjs?v=ui9';
 import {assessmentActions,openKeyEditor,openGradingEditor} from './assessment-view.mjs?v=bank3';
@@ -5,7 +6,7 @@ import {renderReport,individualHtml} from './report-view.mjs?v=bank1';
 const reportFilters=new Map();
 import {cardManagement} from './cards-view.mjs?v=bank1';
 import {buildAudience} from './audience.mjs';
-import {bankView,composeView,versionPanel,bindVersionPanel} from './bank-view.mjs?v=print2';
+import {bankView,composeView,versionPanel,bindVersionPanel} from './bank-view.mjs?v=delete1';
 import { escapeHtml as esc } from './layout.mjs?v=ui9';
 import { openScanner, stopScanner } from './scanner.mjs?v=id1';
 const $ = (s, root = document) => root.querySelector(s),
@@ -121,13 +122,14 @@ function shell(active) {
             ['exams', 'Simulados', 'exam'],
             ['bank', 'Banco de questões', 'book'],
             ['compose', 'Montar prova', 'plus'],
+            ['new', 'Cartão para prova externa', 'print'],
             ['classes', 'Turmas e estudantes', 'users'],
             ['reports', 'Relatórios', 'chart'],
         ]
             .map(([r, l, i]) => `<a class="nav-item ${active === r ? 'active' : ''}" href="#${r}">${icon(i)}${l}</a>`)
             .join(
                 '',
-            )}<div class="nav-label">Organização</div><a class="nav-item ${active === 'import' ? 'active' : ''}" href="#import">${icon('upload')}Importar estudantes</a>${['admin','operator'].includes(state.user.role) ? `<a class="nav-item ${active === 'team' ? 'active' : ''}" href="#team">${icon('shield')}Equipe da escola</a>` : ''}<a class="nav-item ${active === 'help' ? 'active' : ''}" href="#help">${icon('book')}Como usar</a></nav><div class="sidebar-foot"><p><span class="online-dot"></span>Dados salvos no servidor</p><strong>${esc(dash?.school || 'Ambiente escolar')}</strong><p>Conhecer para ensinar melhor.</p></div></aside><button class="nav-backdrop" id="nav-backdrop" type="button" aria-label="Fechar menu" tabindex="-1" hidden></button><div class="workspace"><header class="topbar"><button class="quiet mobile-menu" id="menu" aria-label="Abrir ou fechar navegação" aria-expanded="false" aria-controls="navigation">${icon('menu')}</button><span class="breadcrumb">Escola / <strong>${{ home: 'Visão geral', exams: 'Simulados', bank: 'Banco de questões', compose: 'Montar prova', classes: 'Turmas', reports: 'Relatórios', import: 'Importação', team: 'Equipe', help: 'Ajuda' }[active] || 'Simulado'}</strong></span><div class="account"><div class="avatar">${esc(state.user.name.slice(0, 1).toUpperCase())}</div><span>${esc(state.user.name)}</span><button id="logout" class="quiet" aria-label="Sair da conta">${icon('logout')}</button></div></header><main class="main" id="main" tabindex="-1"><div class="loading">Carregando…</div></main></div></div>`;
+            )}<div class="nav-label">Organização</div><a class="nav-item ${active === 'import' ? 'active' : ''}" href="#import">${icon('upload')}Importar estudantes</a>${['admin','operator'].includes(state.user.role) ? `<a class="nav-item ${active === 'team' ? 'active' : ''}" href="#team">${icon('shield')}Equipe da escola</a>` : ''}<a class="nav-item ${active === 'help' ? 'active' : ''}" href="#help">${icon('book')}Como usar</a></nav><div class="sidebar-foot"><p><span class="online-dot"></span>Dados salvos no servidor</p><strong>${esc(dash?.school || 'Ambiente escolar')}</strong><p>Conhecer para ensinar melhor.</p></div></aside><button class="nav-backdrop" id="nav-backdrop" type="button" aria-label="Fechar menu" tabindex="-1" hidden></button><div class="workspace"><header class="topbar"><button class="quiet mobile-menu" id="menu" aria-label="Abrir ou fechar navegação" aria-expanded="false" aria-controls="navigation">${icon('menu')}</button><span class="breadcrumb">Escola / <strong>${{ home: 'Visão geral', exams: 'Simulados', bank: 'Banco de questões', compose: 'Montar prova', new: 'Cartão para prova externa', classes: 'Turmas', reports: 'Relatórios', import: 'Importação', team: 'Equipe', help: 'Ajuda' }[active] || 'Simulado'}</strong></span><div class="account"><div class="avatar">${esc(state.user.name.slice(0, 1).toUpperCase())}</div><span>${esc(state.user.name)}</span><button id="logout" class="quiet" aria-label="Sair da conta">${icon('logout')}</button></div></header><main class="main" id="main" tabindex="-1"><div class="loading">Carregando…</div></main></div></div>`;
     setupNavigation();
     $('#logout').onclick = async () => {
         stopScanner();
@@ -176,7 +178,7 @@ async function route() {
         return;
     }
     const [view = 'home', id] = location.hash.slice(1).split('/'),
-        active = ['exam', 'new', 'scan'].includes(view) ? 'exams' : view;
+        active = ['exam', 'scan'].includes(view) ? 'exams' : view;
     shell(active);
     try {
         dash = await api('dashboard');
@@ -227,9 +229,16 @@ async function route() {
                 `<div class="error" role="alert">${esc(e.message)}</div><a class="button secondary" href="#home">Voltar ao início</a>`;
     }
 }
+const canDeleteExams=()=>['admin','operator'].includes(state.user?.role);
+function bindExamDeletion(){
+    if(!canDeleteExams())return;
+    $$('[data-delete-exam]').forEach(button=>button.onclick=()=>busy(button,async()=>{
+        stopScanner();await confirmExamDeletion(Number(button.dataset.deleteExam),{api,toast,openModal,onDeleted:async()=>{dash=null;if(location.hash==='#exams')await route();else location.hash='exams';}});
+    }));
+}
 function examTable(exams) {
     return exams.length
-        ? `<div class="table-wrap"><table><thead><tr><th>Simulado</th><th>Turma / data</th><th>Correções</th><th>Situação</th><th><span class="visually-hidden">Ações</span></th></tr></thead><tbody>${exams.map((e) => `<tr><td><strong>${esc(e.name)}</strong><small>${e.questions} questões</small></td><td>${esc(e.class_name)}<small>${dateFmt(e.date)}</small></td><td>${e.graded} de ${e.enrolled}<div class="progress"><span style="width:${e.enrolled ? (100 * e.graded) / e.enrolled : 0}%"></span></div></td><td><span class="badge ${e.graded === e.enrolled ? '' : 'warn'}">${e.graded === e.enrolled ? 'Concluído' : e.graded ? 'Em correção' : 'Aguardando leitura'}</span></td><td><a class="button quiet" href="#exam/${e.id}" aria-label="Abrir ${esc(e.name)}">${icon('arrow')}</a></td></tr>`).join('')}</tbody></table></div>`
+        ? `<div class="table-wrap"><table><thead><tr><th>Simulado</th><th>Turma / data</th><th>Correções</th><th>Situação</th><th><span class="visually-hidden">Ações</span></th></tr></thead><tbody>${exams.map((e) => `<tr><td><strong>${esc(e.name)}</strong><small>${e.questions} questões · ${e.has_content?'Prova com questões':'Cartão / prova externa'}</small></td><td>${esc(e.class_name)}<small>${dateFmt(e.date)}</small></td><td>${e.graded} de ${e.enrolled}<div class="progress"><span style="width:${e.enrolled ? (100 * e.graded) / e.enrolled : 0}%"></span></div></td><td><span class="badge ${e.graded === e.enrolled ? '' : 'warn'}">${e.graded === e.enrolled ? 'Concluído' : e.graded ? 'Em correção' : 'Aguardando leitura'}</span></td><td><a class="button quiet" href="#exam/${e.id}" aria-label="Abrir ${esc(e.name)}">${icon('arrow')}</a>${canDeleteExams()?`<button type="button" class="quiet danger" data-delete-exam="${e.id}" aria-label="Apagar ${esc(e.name)}">Apagar</button>`:''}</td></tr>`).join('')}</tbody></table></div>`
         : empty('Sua próxima avaliação começa aqui', 'Importe os estudantes e crie o primeiro simulado.', 'exam');
 }
 function home() {
@@ -239,9 +248,10 @@ function home() {
             'Painel de acompanhamento',
             `Olá, ${state.user.name.split(' ')[0]}.`,
             'Um olhar sobre suas turmas, avaliações e próximas etapas.',
-            `<a class="button" href="#new">${icon('plus')}Novo simulado</a>`,
+            `<a class="button" href="#compose">${icon('plus')}Montar prova</a><a class="button secondary" href="#new">${icon('print')}Cartão para prova externa</a>`,
         ) +
         `<div class="stats">${stat('Estudantes', dash.student_count, 'Cadastros da sua escola', 'users')}${stat('Turmas', dash.classes.length, 'Turmas disponíveis', 'book')}${stat('Simulados', dash.exams.length, `${upcoming.length} aguardando conclusão`, 'exam')}${stat('Cartões corrigidos', dash.result_count, 'Resultados completos salvos', 'scan')}</div><div class="grid-two"><div><section class="card welcome"><div class="eyebrow">Do papel à aprendizagem</div><h2>Menos tempo corrigindo.<br>Mais tempo ensinando.</h2><p>Crie a avaliação, imprima os cartões e deixe a câmera ajudar na correção. Cada resultado abre uma nova conversa sobre a aprendizagem.</p><a class="button" href="${dash.student_count ? '#new' : '#import'}">${icon(dash.student_count ? 'plus' : 'upload')}${dash.student_count ? 'Preparar uma avaliação' : 'Importar meus estudantes'}</a></section><section class="card"><div class="card-header"><div><h2>Seus simulados</h2><p>As avaliações mais recentes da escola</p></div><a class="button quiet" href="#exams">Ver todos ${icon('arrow')}</a></div>${examTable(dash.exams.slice(0, 5))}</section></div><div><section class="card"><div class="card-header"><h2>Um fluxo simples</h2>${icon('check')}</div><ol class="steps"><li><div><strong>Organize sua turma</strong><small>Importe o CSV e confira os cadastros.</small></div></li><li><div><strong>Prepare o simulado</strong><small>Defina áreas, questões e gabarito.</small></div></li><li><div><strong>Imprima e leia</strong><small>Capture as marcações com a câmera.</small></div></li><li><div><strong>Acompanhe os resultados</strong><small>Observe acertos, áreas e evolução.</small></div></li></ol><a class="button secondary button-block space-before" href="#help">Conhecer o passo a passo</a></section><section class="card"><div class="eyebrow">Avaliação com contexto</div><h3>Cada turma tem uma história.</h3><p class="small muted">Use os indicadores como ponto de partida. A dificuldade de uma questão pode ter diferentes causas e merece ser investigada.</p><a class="button quiet" href="#reports">Explorar relatórios ${icon('arrow')}</a></section></div></div>`;
+    bindExamDeletion();
 }
 function examsView() {
     $('#main').innerHTML =
@@ -249,15 +259,17 @@ function examsView() {
             'Planejamento e correção',
             'Simulados',
             'Uma disciplina ou várias áreas. Organize a avaliação do seu jeito.',
-            `<a class="button" href="#new">${icon('plus')}Novo simulado</a>`,
+            `<a class="button" href="#compose">${icon('plus')}Montar prova</a><a class="button secondary" href="#new">${icon('print')}Cartão para prova externa</a>`,
         ) +
         `<section class="card"><div class="toolbar"><label class="visually-hidden" for="search">Buscar simulado</label><input id="search" placeholder="Buscar por nome ou turma…"></div><div id="exam-table">${examTable(dash.exams)}</div></section>`;
-    $('#search').oninput = (e) =>
-        ($('#exam-table').innerHTML = examTable(
+    bindExamDeletion();
+    $('#search').oninput = (e) => {
+        $('#exam-table').innerHTML = examTable(
             dash.exams.filter((x) =>
                 (x.name + ' ' + x.class_name).toLocaleLowerCase().includes(e.target.value.toLocaleLowerCase()),
             ),
-        ));
+        );bindExamDeletion();
+    };
 }
 async function loadStudents() {
     studentsCache = await api('students');
@@ -411,7 +423,7 @@ async function newExam() {
     await loadStudents();
     if (!dash.classes.length) {
         $('#main').innerHTML =
-            head('Planejamento', 'Novo simulado', 'Importe as turmas antes de criar sua primeira avaliação.') +
+            head('Prova pronta em outro lugar', 'Cartão para prova externa', 'Importe os participantes para gerar o cartão e corrigir sua prova externa pela câmera.') +
             `<section class="card">${empty('Comece pelos estudantes', 'As turmas e matrículas devem vir do CSV.', 'users')}<a class="button" href="#import">Importar CSV</a></section>`;
         return;
     }
@@ -421,10 +433,10 @@ async function newExam() {
     $('#main').innerHTML =
         head(
             'Planejamento',
-            'Novo simulado',
-            'Crie uma prova de uma disciplina ou combine áreas com quantidades diferentes.',
+            'Cartão para prova externa',
+            'Use com uma prova pronta, inclusive de outro site ou arquivo. Informe disciplinas, quantidades, gabarito e participantes para imprimir o cartão e corrigir pela câmera.',
         ) +
-        `<form id="new-exam"><div class="grid-two"><div><section class="card"><div class="card-header"><h2>Informações da avaliação</h2><span class="badge">1 / 3</span></div><div class="form-grid">${field('exam-name', 'Nome do simulado', 'text', 'required maxlength="180" placeholder="Nome da avaliação"')}${field('exam-date', 'Data', 'date', 'required')}<div class="field full" id="audience"></div><div class="field"><label for="alternatives">Alternativas por questão</label><select id="alternatives">${[2, 3, 4, 5].map((n) => `<option value="${n}" ${n === 5 ? 'selected' : ''}>${n} alternativas (A–${String.fromCharCode(64 + n)})</option>`).join('')}</select></div></div></section><section class="card"><div class="card-header"><h2>Áreas e disciplinas</h2><span class="badge">2 / 3</span></div><p class="small muted">Escolha uma área do ENEM ou digite o nome de uma disciplina. Até 240 questões no total.</p><datalist id="area-options">${initialAreas.map((x) => `<option value="${x}">`).join('')}</datalist><div id="area-rows"></div><div class="actions"><button class="secondary" type="button" id="add-area">${icon('plus')}Adicionar área</button><button class="quiet" type="button" id="enem">Usar as quatro áreas ENEM</button></div><div class="note" id="total-questions"></div><button type="button" id="prepare-key">Montar gabarito ${icon('arrow')}</button><div id="key"></div></section></div><aside><section class="card"><div class="card-header"><h2>Participantes</h2><span class="badge">3 / 3</span></div><p class="small muted">Escolha as turmas ou a série e confira os estudantes incluídos.</p><label class="check-row"><input id="all-students" type="checkbox" checked>Selecionar todos das turmas escolhidas</label><div class="check-list" id="enrollment"></div><p class="small muted space-before-sm" id="selected-count"></p></section><section class="card"><h3>Pronto para criar?</h3><p class="small muted">Confira o gabarito antes de salvar. Depois, você pode editá-lo, anular questões para todos e configurar as notas. Os resultados serão recalculados.</p><div id="create-error"></div><button type="submit" class="button-block">${icon('check')}Criar simulado</button></section></aside></div></form>`;
+        `<form id="new-exam"><div class="grid-two"><div><section class="card"><div class="card-header"><h2>Informações da avaliação</h2><span class="badge">1 / 3</span></div><div class="form-grid">${field('exam-name', 'Nome do simulado', 'text', 'required maxlength="180" placeholder="Nome da avaliação"')}${field('exam-date', 'Data', 'date', 'required')}<div class="field full" id="audience"></div><div class="field"><label for="alternatives">Alternativas por questão</label><select id="alternatives">${[2, 3, 4, 5].map((n) => `<option value="${n}" ${n === 5 ? 'selected' : ''}>${n} alternativas (A–${String.fromCharCode(64 + n)})</option>`).join('')}</select></div></div></section><section class="card"><div class="card-header"><h2>Áreas e disciplinas</h2><span class="badge">2 / 3</span></div><p class="small muted">Escolha uma área do ENEM ou digite o nome de uma disciplina. Até 240 questões no total.</p><datalist id="area-options">${initialAreas.map((x) => `<option value="${x}">`).join('')}</datalist><div id="area-rows"></div><div class="actions"><button class="secondary" type="button" id="add-area">${icon('plus')}Adicionar área</button><button class="quiet" type="button" id="enem">Usar as quatro áreas ENEM</button></div><div class="note" id="total-questions"></div><button type="button" id="prepare-key">Montar gabarito ${icon('arrow')}</button><div id="key"></div></section></div><aside><section class="card"><div class="card-header"><h2>Participantes</h2><span class="badge">3 / 3</span></div><p class="small muted">Escolha as turmas ou a série e confira os estudantes incluídos.</p><label class="check-row"><input id="all-students" type="checkbox" checked>Selecionar todos das turmas escolhidas</label><div class="check-list" id="enrollment"></div><p class="small muted space-before-sm" id="selected-count"></p></section><section class="card"><h3>Pronto para criar?</h3><p class="small muted">Confira o gabarito antes de salvar. Depois, você pode editá-lo, anular questões para todos e configurar as notas. Os resultados serão recalculados.</p><div id="create-error"></div><button type="submit" class="button-block">${icon('check')}Criar cartão para prova externa</button></section></aside></div></form>`;
     const now = new Date();
     $('#exam-date').value =
         `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
@@ -527,7 +539,7 @@ async function newExam() {
                 alternatives: Number($('#alternatives').value),
                 areas,
             });
-            toast('Simulado criado com gabarito e participantes.');
+            toast('Prova externa cadastrada com gabarito e participantes. Gere o cartão para imprimir.');
             location.hash = `exam/${r.id}`;
         } catch (e) {
             $('#create-error').innerHTML = `<div class="error" role="alert">${esc(e.message)}</div>`;
@@ -544,7 +556,7 @@ async function examView(id, startScan = false) {
             'Aplicação e correção',
             e.name,
             `${e.class_name} · ${dateFmt(e.date)} · ${e.questions.length} questões · A–${String.fromCharCode(64 + e.alternatives)}`,
-            `<a class="button secondary" href="#reports/${id}">${icon('chart')}Ver resultados</a><button id="scan">${icon('scan')}Ler cartões</button>`,
+            `<a class="button secondary" href="#reports/${id}">${icon('chart')}Ver resultados</a><button id="scan">${icon('scan')}Ler cartões</button>${canDeleteExams()?`<button type="button" class="quiet danger" data-delete-exam="${id}">Apagar simulado</button>`:''}`,
         ) +
         `<div class="stats">${stat('Participantes', e.students.length, 'Incluídos na avaliação', 'users')}${stat('Áreas', e.areas.length, 'Quantidades independentes', 'book')}${stat('Resultados', completed, `${e.students.length - completed} aguardando correção`, 'check')}${stat('Modelos / cartões', e.booklets.length, `${Math.ceil(e.questions.length / 60)} folha(s) por conjunto`, 'print')}</div><div class="grid-two"><div>${cardManagement(e, icon)}<section class="card"><div class="card-header"><h2>Participantes e resultados</h2></div><div class="table-wrap"><table><thead><tr><th>Estudante / turma</th><th>Identificador</th><th>Resultado</th></tr></thead><tbody>${e.students.map((s) => `<tr><td>${esc(displayName(s))}<small>${esc(s.class_name)}</small></td><td>${esc(s.external_id)}</td><td>${s.result_id ? `<button class="quiet" data-result="${s.result_id}">Ver correção ${icon('arrow')}</button>` : `<span class="badge warn">${s.booklet_id ? 'Leitura parcial' : 'Pendente'}</span>`}</td></tr>`).join('')}</tbody></table></div></section></div><aside><section class="card"><div class="card-header"><h2>${e.versions?.length?'Gabarito de referência':'Áreas e gabarito'}</h2>${icon('exam')}</div>${e.areas.map((a) => `<div class="bar-label area-summary"><span>${esc(a.name)}</span><strong>${a.count} questões</strong></div>`).join('')}<details class="space-before"><summary class="link small">${e.versions?.length?'Conferir ordem original da seleção':'Conferir gabarito'}</summary><div class="report-questions space-before">${e.questions.map((q) => `<div class="question-chip"><strong>${q.number} · ${q.annulled?'Anulada':q.answer}</strong><small>${esc(q.area)}</small></div>`).join('')}</div></details>${assessmentActions(e)}</section><section class="card"><h3>Para uma leitura confiável</h3><p class="small muted">Use uma folha plana, boa iluminação e caneta de cor nítida. Enquadre as quatro marcas. Questões em branco ou com múltiplas marcações contam como incorretas. Só você pode anular uma questão para todos.</p><p class="small muted">O acesso à câmera só é solicitado depois de você tocar em “Ativar câmera”.</p></section></aside></div>`;
     const assessmentUi={api,toast,openModal,onSaved:async()=>{dash=null;await examView(id);}};
@@ -552,6 +564,7 @@ async function examView(id, startScan = false) {
         const panel=document.createElement('div');panel.innerHTML=versionPanel(e);$('.stats').after(panel);
         bindVersionPanel(e,assessmentUi);
     }
+    bindExamDeletion();
     $('#edit-key').onclick=()=>openKeyEditor(e,assessmentUi);
     $('#edit-grading').onclick=()=>openGradingEditor(e,assessmentUi);
     $('#generate').onsubmit = async (ev) => {
